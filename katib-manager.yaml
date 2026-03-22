@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: katib-db-manager
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: katib-db-manager
+  template:
+    metadata:
+      labels:
+        app: katib-db-manager
+    spec:
+      containers:
+      - name: katib-db-manager
+        image: kubeflow/katib-db-manager:v0.15.0
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: DB_NAME
+          value: "mysql"
+        - name: DB_PASSWORD
+          value: ""
+        - name: KATIB_MYSQL_DB_HOST
+          value: "katib-mysql"
+        - name: KATIB_MYSQL_DB_PORT
+          value: "3306"
+        - name: MYSQL_DB_NAME
+          value: "katib"
+        ports:
+        - containerPort: 6789
+          name: api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: katib-db-manager
+  namespace: kubeflow
+spec:
+  ports:
+  - port: 6789
+    targetPort: 6789
+  selector:
+    app: katib-db-manager

@@ -1,0 +1,30 @@
+# RBAC: allow code-server (default namespace) to create Katib Experiments in kubeflow
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: katib-experiment-creator
+  namespace: kubeflow
+rules:
+- apiGroups: ["kubeflow.org"]
+  resources: ["experiments", "trials", "suggestions"]
+  verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["pods", "pods/log", "jobs"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "watch", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: code-server-katib-access
+  namespace: kubeflow
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: default
+roleRef:
+  kind: Role
+  name: katib-experiment-creator
+  apiGroup: rbac.authorization.k8s.io

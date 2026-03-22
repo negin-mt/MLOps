@@ -1,0 +1,6 @@
+# code-server with Python 3 for Katib/Kubeflow SDK
+FROM codercom/code-server:latest
+USER root
+RUN apt-get update && apt-get install -y python3 python3-pip && rm -rf /var/lib/apt/lists/* \
+    && pip3 install --no-cache-dir --break-system-packages kubeflow-katib kubernetes
+USER coder

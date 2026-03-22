@@ -1,0 +1,5 @@
+# MLOps Platform - Python Dependencies
+# For running Katib script from inside VS Code
+
+kubeflow-katib>=0.15.0
+kubernetes>=28.0.0

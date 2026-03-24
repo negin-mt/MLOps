@@ -1,0 +1,15 @@
+# Expose Katib UI via LoadBalancer (MetalLB assigns an IP)
+# Access at http://<KATIB_UI_IP>/katib/ (get IP with: kubectl get svc katib-ui-lb -n kubeflow)
+apiVersion: v1
+kind: Service
+metadata:
+  name: katib-ui-lb
+  namespace: kubeflow
+spec:
+  type: LoadBalancer
+  selector:
+    katib.kubeflow.org/component: ui
+  ports:
+  - port: 80
+    targetPort: 8080
+    name: http

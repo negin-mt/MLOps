@@ -49,6 +49,29 @@ kubectl get svc -n istio-system istio-ingressgateway
 
 - **VS Code**: `http://<EXTERNAL_IP>/vscode/` or `http://<EXTERNAL_IP>/`
 - **Password**: `1234`
+- **Katib UI**: See [Accessing Katib UI](#accessing-katib-ui) below
+
+## Accessing Katib UI
+
+The Katib UI lets you view experiments, trials, and real-time metric graphs. **Use the `/katib/` path** (not the root).
+
+**Option 1 – Via Istio (same IP as VS Code):**  
+Open `http://<EXTERNAL_IP>/katib/` (same IP from `kubectl get svc -n istio-system istio-ingressgateway`).
+
+**Option 2 – LoadBalancer (separate IP):**
+```bash
+kubectl apply -f katib-ui-expose.yaml
+kubectl get svc katib-ui-lb -n kubeflow
+```
+Then open `http://<KATIB_UI_IP>/katib/`.
+
+**Option 3 – Port-forward:**
+```bash
+kubectl port-forward -n kubeflow svc/katib-ui 8080:80
+```
+Then open `http://localhost:8080/katib/`.
+
+---
 
 ## Running Katib Experiment
 
@@ -142,6 +165,16 @@ kubectl apply -f code-server-rbac.yaml
 
 ---
 
+## Katib Documentation
+
+For detailed Katib documentation (CRDs, user workflow, results), see **[docs/KATIB.md](docs/KATIB.md)**. It includes:
+- Katib CRDs (Experiment, Suggestion, Trial)
+- User workflow to create experiments
+- How Katib returns results
+- Draw.io diagram descriptions for block diagrams
+
+---
+
 ## File Structure
 
 ```
@@ -150,11 +183,14 @@ Tesi/
 ├── kind-config.yaml      # Kind configuration (port mappings 80, 443)
 ├── metallb-config.yaml   # MetalLB IP pool (optional; setup.sh creates it)
 ├── vscode.yaml           # Code-Server StatefulSet + Service + PVC
-├── istio-networking.yaml # Istio Gateway and VirtualService
+├── istio-networking.yaml  # Istio Gateway and VirtualService (vscode)
+├── katib-ui-expose.yaml   # LoadBalancer to expose Katib UI (optional)
 ├── code-server-rbac.yaml # RBAC: Code-Server can create Katib experiments in kubeflow
 ├── Dockerfile.code-server# Custom Code-Server image with Python + kubeflow-katib
 ├── katib_experiment.py   # Python script to create Katib MNIST tuning experiment
 ├── requirements.txt      # Python dependencies (for reference)
+├── docs/
+│   └── KATIB.md          # Katib documentation (CRDs, workflow, diagrams)
 └── README.md
 ```
 
@@ -164,5 +200,5 @@ Tesi/
 
 - Code-Server runs as a StatefulSet with 5Gi PVC; code and settings persist after pod restart.
 - Katib uses the official standalone install (`kubeflow/katib` manifests v0.17.0).
-- VirtualService routes `/vscode` to code-server (with rewrite to `/`).
+- VirtualService routes `/vscode` to code-server. Katib UI is exposed via `katib-ui-expose.yaml` (LoadBalancer) or port-forward.
 - The experiment tunes learning rate for Fashion-MNIST; best trial and metrics are available in the experiment status.

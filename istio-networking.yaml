@@ -33,6 +33,14 @@ spec:
         host: code-server
         port:
           number: 8080
+  - match:
+    - uri:
+        prefix: /katib
+    route:
+    - destination:
+        host: katib-ui.kubeflow.svc.cluster.local
+        port:
+          number: 80
   - route:
     - destination:
         host: code-server

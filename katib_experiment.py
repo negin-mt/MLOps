@@ -19,7 +19,7 @@ from kubeflow.katib import (
 client = KatibClient()
 
 # 2. Experiment settings
-EXPERIMENT_NAME = "negin-mnist-hp-tuning"
+EXPERIMENT_NAME = "negin-mnist-hp-tuning-final"
 NAMESPACE = "kubeflow"
 
 # 3. Define Experiment

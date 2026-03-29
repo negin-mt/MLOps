@@ -136,6 +136,16 @@ If pods cannot resolve external hostnames (e.g. `quay.io`, `docker.io`), patch C
 kubectl get configmap coredns -n kube-system -o yaml | sed 's/forward \. \/etc\/resolv.conf/forward . 8.8.8.8 8.8.4.4/' | kubectl apply -f -
 ```
 
+### Restricted networks (university Wi‑Fi, corporate)
+
+Some networks block DNS to public resolvers (e.g. `8.8.8.8` times out from your laptop). Then CoreDNS inside Kind cannot resolve names either, and trial pods fail when downloading datasets (e.g. Fashion-MNIST) with errors like `Temporary failure in name resolution`.
+
+**What to do:**
+
+- Use a network that allows DNS (e.g. **mobile hotspot**), or configure CoreDNS `forward` to use **nameservers your network allows** (see `nameserver` lines in `/etc/resolv.conf` on the host).
+- After changing CoreDNS, restart it: `kubectl rollout restart deployment/coredns -n kube-system`.
+
+
 ### ImagePullBackOff
 
 If the cluster cannot pull images (e.g. due to DNS or network restrictions), preload images on the host and load into Kind:

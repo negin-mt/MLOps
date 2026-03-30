@@ -161,6 +161,8 @@ Use [draw.io](https://app.diagrams.net/) to create the following diagrams. Expor
 
 ### Diagram 1: Katib Architecture (CRDs and Components)
 
+![Katib Architecture](katib-architecture.drawio.svg)
+
 **Blocks to draw:**
 - **User** (top) → creates **Experiment** (CRD)
 - **Katib Controller** (center) → watches Experiment, creates **Suggestion** (CRD), creates **Trial** (CRD)

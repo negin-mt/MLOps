@@ -1,6 +1,6 @@
 # Katib Documentation
 
-This document describes how Katib works, the CRDs involved, the user workflow, and how results are returned. Use [draw.io](https://app.diagrams.net/) to recreate the block diagrams described in the *Draw.io Diagrams* section.
+This document describes how Katib works, the CRDs involved, the user workflow, and how results are returned. Diagrams are under [Draw.io Diagrams](#6-drawio-diagrams): one SVG export and two PNG exports from [draw.io](https://app.diagrams.net/). Place PNG files in this `docs/` folder using the filenames in the markdown (or update the links to match your files).
 
 ---
 
@@ -155,15 +155,12 @@ The Katib Python SDK can be used to list experiments and fetch results programma
 
 ---
 
-## 6. Draw.io Diagrams
-
-Use [draw.io](https://app.diagrams.net/) to create the following diagrams. Export as PNG/SVG and add them to this document.
+## 6.Diagrams
 
 ### Diagram 1: Katib Architecture (CRDs and Components)
 
 ![Katib Architecture](katib-architecture.drawio.svg)
 
-**Blocks to draw:**
 - **User** (top) → creates **Experiment** (CRD)
 - **Katib Controller** (center) → watches Experiment, creates **Suggestion** (CRD), creates **Trial** (CRD)
 - **Suggestion** → connects to **Algorithm Service** (e.g. random)
@@ -174,23 +171,26 @@ Use [draw.io](https://app.diagrams.net/) to create the following diagrams. Expor
 
 ### Diagram 2: User Workflow
 
-**Flow:**
-1. User defines Experiment (SDK or YAML)
-2. Katib Controller creates Suggestion
-3. Algorithm proposes hyperparameters
-4. Controller creates Trials
-5. Trials spawn worker Jobs
-6. Workers train, metrics collector parses output
-7. Metrics stored in DB
-8. Controller updates Experiment.status
-9. User inspects best trial
+![Katib user workflow](katib-user-workflow.png)
 
-### Diagram 3: Trial Pod Structure
+- **User** (start) → creates an **Experiment** (Katib Python SDK, YAML/`kubectl`, or **Katib UI** wizard)
+- **katib-controller** → creates **Suggestion** CRD for that experiment
+- **Suggestion** → drives **Algorithm** (e.g. random) to propose the next hyperparameter sets
+- **katib-controller** → creates **Trial** CRDs (one set of HPs per trial, up to **parallelTrialCount** at a time)
+- Each **Trial** → materializes a **worker** (usually a **Job** / Pod from the trial template)
+- **Worker Pod** → training runs; **metrics collector** reads output and sends observations to **katib-db-manager** → **MySQL**
+- **katib-controller** → reconciles trial completion, writes **Experiment.status** (`currentOptimalTrial`, trial lists, conditions)
+- **User** (end) → reads results via **`kubectl`**, **Katib UI** (`/katib/`), or **Python SDK**
 
-**Blocks:**
-- **Trial Pod** (one box)
-  - **training-container**: runs model training (e.g. PyTorch MNIST)
-  - **metrics-logger-and-collector**: sidecar that reads stdout, parses metrics with regex, sends to katib-db-manager
+### Diagram 3: Trial pod structure
+
+![Trial pod structure](katib-trial-pod-structure.png)
+
+- One **Pod** labelled **Trial** (created for each Katib Trial)
+- **Container: `training-container`** → runs the training image (e.g. `pytorch-mnist-cpu`), executes `mnist.py` with substituted hyperparameters (e.g. `--lr=…`), writes training logs and metric lines to **stdout/stderr**
+- **Container: `metrics-logger-and-collector`** (sidecar) → attached to the same Pod, tails the **primary container** output, applies **metricsFormat** regex (StdOut collector), reports metrics to **katib-db-manager**
+- **Implication:** training must print metrics in the format the collector expects (e.g. `{metricName: accuracy, metricValue: …}`)
+
 
 ---
 

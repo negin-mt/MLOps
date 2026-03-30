@@ -200,7 +200,10 @@ Tesi/
 ├── katib_experiment.py   # Python script to create Katib MNIST tuning experiment
 ├── requirements.txt      # Python dependencies (for reference)
 ├── docs/
-│   └── KATIB.md          # Katib documentation (CRDs, workflow, diagrams)
+│   ├── KATIB.md                         # Katib documentation (CRDs, workflow, diagrams)
+│   ├── katib-architecture.drawio.svg    # Diagram 1 (architecture)
+│   ├── katib-user-workflow.png          # Diagram 2 (user workflow)
+│   └── katib-trial-pod-structure.png    # Diagram 3 (trial pod)
 └── README.md
 ```
 

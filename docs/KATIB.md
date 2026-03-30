@@ -1,6 +1,6 @@
 # Katib Documentation
 
-This document describes how Katib works, the CRDs involved, the user workflow, and how results are returned. Diagrams are under [Draw.io Diagrams](#6-drawio-diagrams): one SVG export and two PNG exports from [draw.io](https://app.diagrams.net/). Place PNG files in this `docs/` folder using the filenames in the markdown (or update the links to match your files).
+This document describes how Katib works, the CRDs involved, the user workflow, and how results are returned.
 
 ---
 

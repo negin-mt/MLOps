@@ -35,10 +35,10 @@ CPU_TRAINING_IMAGE = os.getenv(
     "CPU_TRAINING_IMAGE", "docker.io/kubeflowkatib/pytorch-mnist-cpu:v0.16.0"
 )
 NVIDIA_TRAINING_IMAGE = os.getenv(
-    "NVIDIA_TRAINING_IMAGE", "docker.io/kubeflowkatib/pytorch-mnist-cpu:v0.16.0"
+    "NVIDIA_TRAINING_IMAGE", "nvcr.io/nvidia/pytorch:24.01-py3"
 )
 AMD_TRAINING_IMAGE = os.getenv(
-    "AMD_TRAINING_IMAGE", "docker.io/kubeflowkatib/pytorch-mnist-cpu:v0.16.0"
+    "AMD_TRAINING_IMAGE", "rocm/pytorch:latest"
 )
 # Match cluster guardrails (katib-guardrails.yaml) for friendly pre-checks.
 MAX_CPU_PER_TRIAL = "2"

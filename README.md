@@ -105,6 +105,30 @@ kubectl get trials -n kubeflow
 kubectl get experiment negin-mnist-hp-tuning -n kubeflow -o jsonpath='{.status.currentOptimalTrial}' | jq .
 ```
 
+### Allocate resources per Trial (CPU/GPU)
+
+`katib_experiment.py` can request dedicated resources for each trial worker. The current defaults are:
+
+- CPU: `10`
+- Memory: `16Gi`
+- GPU: `1` (`nvidia.com/gpu`)
+
+In the script, these are configured through:
+
+- `TRIAL_CPU`
+- `TRIAL_MEMORY`
+- `TRIAL_GPU`
+
+and applied in `trialTemplate.trialSpec.spec.template.spec.containers[].resources`.
+
+Verify your node has GPU resources before running:
+
+```bash
+kubectl describe node | grep -A3 -E "Allocatable|Capacity|nvidia.com/gpu"
+```
+
+If `nvidia.com/gpu` is not present, trials requesting GPU will stay `Pending` until the cluster has NVIDIA drivers + device plugin.
+
 ---
 
 ## Server Deployment

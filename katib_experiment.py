@@ -21,6 +21,9 @@ client = KatibClient()
 # 2. Experiment settings
 EXPERIMENT_NAME = "negin-mnist-hp-tuning-final"
 NAMESPACE = "kubeflow"
+TRIAL_CPU = "10"
+TRIAL_MEMORY = "16Gi"
+TRIAL_GPU = "1"  # Requires NVIDIA device plugin and GPU-enabled Kubernetes node.
 
 # 3. Define Experiment
 experiment = V1beta1Experiment(
@@ -78,6 +81,18 @@ experiment = V1beta1Experiment(
                                     "name": "training-container",
                                     "image": "docker.io/kubeflowkatib/pytorch-mnist-cpu:v0.16.0",
                                     "imagePullPolicy": "IfNotPresent",
+                                    "resources": {
+                                        "requests": {
+                                            "cpu": TRIAL_CPU,
+                                            "memory": TRIAL_MEMORY,
+                                            "nvidia.com/gpu": TRIAL_GPU,
+                                        },
+                                        "limits": {
+                                            "cpu": TRIAL_CPU,
+                                            "memory": TRIAL_MEMORY,
+                                            "nvidia.com/gpu": TRIAL_GPU,
+                                        },
+                                    },
                                     "command": [
                                         "python3",
                                         "/opt/pytorch-mnist/mnist.py",

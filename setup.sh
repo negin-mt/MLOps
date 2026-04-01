@@ -101,6 +101,8 @@ step_katib() {
   wait_for_pods kubeflow "app.kubernetes.io/component=katib-db-manager" 120
   log "Applying RBAC for Code-Server to create Katib experiments..."
   kubectl apply -f code-server-rbac.yaml
+  log "Applying multi-user namespaces, quotas, and namespace RBAC..."
+  kubectl apply -f multi-user-namespaces.yaml
   log "Applying Katib trial guardrails (LimitRange + ResourceQuota)..."
   kubectl apply -f katib-guardrails.yaml
   log "Katib installed in namespace kubeflow."

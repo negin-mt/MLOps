@@ -92,6 +92,35 @@ kubectl cp katib_experiment.py default/$POD:/home/coder/project/katib_experiment
 
 The Code-Server image includes `kubeflow-katib` and `kubernetes`; no extra pip install is needed.
 
+### Multi-user namespaces and fair-share quotas
+
+To support multiple users on the same cluster, this project creates dedicated namespaces:
+
+- `kubeflow-user-negin`
+- `kubeflow-user-yousef`
+
+Each namespace has its own:
+
+- `LimitRange` (per-container min/max/default resources)
+- `ResourceQuota` (total namespace CPU, memory, GPU budget)
+- namespace-scoped RBAC for creating Katib experiments
+- required Katib label: `katib.kubeflow.org/metrics-collector-injection=enabled`
+
+This ensures one user cannot consume all cluster resources and impact others.
+
+Apply manually (also applied by `./setup.sh katib`):
+
+```bash
+kubectl apply -f multi-user-namespaces.yaml
+```
+
+Run the experiment in a specific namespace:
+
+```bash
+KATIB_NAMESPACE=kubeflow-user-negin python3 katib_experiment.py
+KATIB_NAMESPACE=kubeflow-user-yousef python3 katib_experiment.py
+```
+
 ### Check Status
 
 ```bash
@@ -254,6 +283,7 @@ Tesi/
 ├── vscode.yaml           # Code-Server StatefulSet + Service + PVC
 ├── istio-networking.yaml  # Istio Gateway and VirtualService (vscode)
 ├── katib-ui-expose.yaml   # LoadBalancer to expose Katib UI (optional)
+├── multi-user-namespaces.yaml # Per-user namespaces + quotas + LimitRanges + RBAC
 ├── katib-guardrails.yaml  # LimitRange + ResourceQuota for trial resource enforcement
 ├── code-server-rbac.yaml # RBAC: Code-Server can create Katib experiments in kubeflow
 ├── Dockerfile.code-server# Custom Code-Server image with Python + kubeflow-katib

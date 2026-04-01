@@ -4,6 +4,7 @@ Katib Experiment - Hyperparameter tuning with Kubeflow Katib SDK
 This script creates an Experiment in Katib.
 Run from inside VS Code (code-server) with kubeflow-katib and kubernetes installed.
 """
+import os
 from kubernetes.client import V1ObjectMeta
 from kubeflow.katib import (
     KatibClient,
@@ -20,7 +21,7 @@ client = KatibClient()
 
 # 2. Experiment settings
 EXPERIMENT_NAME = "negin-mnist-hp-tuning-final"
-NAMESPACE = "kubeflow"
+NAMESPACE = os.getenv("KATIB_NAMESPACE", "kubeflow-user-negin")
 # Fixed trial resources (not user-configurable from env vars).
 # Enforcement is also applied at cluster level via katib-guardrails.yaml.
 TRIAL_CPU = "1"

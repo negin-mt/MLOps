@@ -1,0 +1,143 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubeflow-user-negin
+  labels:
+    katib.kubeflow.org/metrics-collector-injection: enabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubeflow-user-yousef
+  labels:
+    katib.kubeflow.org/metrics-collector-injection: enabled
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: user-trial-limits
+  namespace: kubeflow-user-negin
+spec:
+  limits:
+    - type: Container
+      max:
+        cpu: "2"
+        memory: "4Gi"
+      min:
+        cpu: "10m"
+        memory: "10Mi"
+      default:
+        cpu: "1"
+        memory: "2Gi"
+      defaultRequest:
+        cpu: "500m"
+        memory: "1Gi"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: user-trial-limits
+  namespace: kubeflow-user-yousef
+spec:
+  limits:
+    - type: Container
+      max:
+        cpu: "2"
+        memory: "4Gi"
+      min:
+        cpu: "10m"
+        memory: "10Mi"
+      default:
+        cpu: "1"
+        memory: "2Gi"
+      defaultRequest:
+        cpu: "500m"
+        memory: "1Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: user-quota
+  namespace: kubeflow-user-negin
+spec:
+  hard:
+    requests.cpu: "2"
+    limits.cpu: "2"
+    requests.memory: "4Gi"
+    limits.memory: "4Gi"
+    requests.nvidia.com/gpu: "1"
+    limits.nvidia.com/gpu: "1"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: user-quota
+  namespace: kubeflow-user-yousef
+spec:
+  hard:
+    requests.cpu: "2"
+    limits.cpu: "2"
+    requests.memory: "4Gi"
+    limits.memory: "4Gi"
+    requests.nvidia.com/gpu: "1"
+    limits.nvidia.com/gpu: "1"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: katib-experiment-creator
+  namespace: kubeflow-user-negin
+rules:
+- apiGroups: ["kubeflow.org"]
+  resources: ["experiments", "trials", "suggestions"]
+  verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["pods", "pods/log"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "watch", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: katib-experiment-creator
+  namespace: kubeflow-user-yousef
+rules:
+- apiGroups: ["kubeflow.org"]
+  resources: ["experiments", "trials", "suggestions"]
+  verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["pods", "pods/log"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "watch", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: code-server-katib-access
+  namespace: kubeflow-user-negin
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: default
+roleRef:
+  kind: Role
+  name: katib-experiment-creator
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: code-server-katib-access
+  namespace: kubeflow-user-yousef
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: default
+roleRef:
+  kind: Role
+  name: katib-experiment-creator
+  apiGroup: rbac.authorization.k8s.io

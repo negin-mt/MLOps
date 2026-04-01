@@ -89,6 +89,14 @@ experiment = V1beta1Experiment(
 client.create_experiment(experiment, namespace="kubeflow")
 ```
 
+In this project, the trial template is hardware-agnostic via `HARDWARE_BACKEND`:
+
+- `cpu`: CPU image, no GPU resource key
+- `nvidia`: NVIDIA image + `nvidia.com/gpu`
+- `amd`: AMD image + `amd.com/gpu`
+
+This allows moving between CUDA and ROCm clusters by switching image/resource mapping, without changing training logic.
+
 **Option B – YAML:**
 
 ```bash

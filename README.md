@@ -136,25 +136,56 @@ kubectl get experiment negin-mnist-hp-tuning -n kubeflow -o jsonpath='{.status.c
 
 ### Allocate resources per Trial (CPU/GPU)
 
-`katib_experiment.py` uses fixed resource values per trial worker (not user-configurable through environment variables):
+`katib_experiment.py` uses fixed trial sizing per worker container:
 
 - CPU: `1`
 - Memory: `2Gi`
-- GPU: `0` (**disabled by default**, CPU-only mode)
+- GPU: selected automatically from hardware backend (`0` for CPU, `1` for GPU backends)
 
-and applied in `trialTemplate.trialSpec.spec.template.spec.containers[].resources`.
+### Hardware-agnostic trial template (CPU / NVIDIA / AMD)
 
-When `TRIAL_GPU` is greater than `0`, each trial requests:
+The trial template is parametric and supports multiple hardware targets by switching:
 
-- `nvidia.com/gpu: 1`
+- training image
+- GPU resource key (`nvidia.com/gpu` vs `amd.com/gpu`)
 
-Verify your node has GPU resources before running:
+Current switch:
 
 ```bash
-kubectl describe node | grep -A3 -E "Allocatable|Capacity|nvidia.com/gpu"
+HARDWARE_BACKEND=cpu|nvidia|amd
 ```
 
-If `nvidia.com/gpu` is not present, keep `TRIAL_GPU=0` (default). Trials requesting GPU on CPU-only clusters will stay `Pending`.
+Examples:
+
+```bash
+# CPU-only (default)
+KATIB_NAMESPACE=kubeflow-user-negin HARDWARE_BACKEND=cpu python3 katib_experiment.py
+
+# NVIDIA/CUDA cluster
+KATIB_NAMESPACE=kubeflow-user-negin HARDWARE_BACKEND=nvidia python3 katib_experiment.py
+
+# AMD/ROCm cluster
+KATIB_NAMESPACE=kubeflow-user-negin HARDWARE_BACKEND=amd python3 katib_experiment.py
+```
+
+Mapping used by the script:
+
+- `cpu` -> image `CPU_TRAINING_IMAGE`, no GPU key
+- `nvidia` -> image `NVIDIA_TRAINING_IMAGE`, resource key `nvidia.com/gpu: 1`
+- `amd` -> image `AMD_TRAINING_IMAGE`, resource key `amd.com/gpu: 1`
+
+You can override image references without changing code:
+
+```bash
+NVIDIA_TRAINING_IMAGE=<your-cuda-image> HARDWARE_BACKEND=nvidia python3 katib_experiment.py
+AMD_TRAINING_IMAGE=<your-rocm-image> HARDWARE_BACKEND=amd python3 katib_experiment.py
+```
+
+Verify available GPU resource keys on your node:
+
+```bash
+kubectl describe node | grep -A3 -E "Allocatable|Capacity|nvidia.com/gpu|amd.com/gpu"
+```
 
 ### Enforced guardrails (cluster-side, cannot be bypassed by editing Python)
 

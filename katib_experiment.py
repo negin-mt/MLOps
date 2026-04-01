@@ -5,6 +5,7 @@ This script creates an Experiment in Katib.
 Run from inside VS Code (code-server) with kubeflow-katib and kubernetes installed.
 """
 import os
+import subprocess
 from kubernetes.client import V1ObjectMeta
 from kubeflow.katib import (
     KatibClient,
@@ -27,6 +28,18 @@ NAMESPACE = os.getenv("KATIB_NAMESPACE", "kubeflow-user-negin")
 TRIAL_CPU = "1"
 TRIAL_MEMORY = "2Gi"
 TRIAL_GPU = "0"
+# Hardware profile: cpu | nvidia | amd
+HARDWARE_BACKEND = os.getenv("HARDWARE_BACKEND", "cpu").strip().lower()
+# Image mapping (override by environment if needed).
+CPU_TRAINING_IMAGE = os.getenv(
+    "CPU_TRAINING_IMAGE", "docker.io/kubeflowkatib/pytorch-mnist-cpu:v0.16.0"
+)
+NVIDIA_TRAINING_IMAGE = os.getenv(
+    "NVIDIA_TRAINING_IMAGE", "docker.io/kubeflowkatib/pytorch-mnist-cpu:v0.16.0"
+)
+AMD_TRAINING_IMAGE = os.getenv(
+    "AMD_TRAINING_IMAGE", "docker.io/kubeflowkatib/pytorch-mnist-cpu:v0.16.0"
+)
 # Match cluster guardrails (katib-guardrails.yaml) for friendly pre-checks.
 MAX_CPU_PER_TRIAL = "2"
 MAX_GPU_PER_TRIAL = "1"
@@ -39,6 +52,12 @@ def _cpu_to_cores(cpu_value: str) -> float:
 
 
 def validate_trial_resources() -> None:
+    if HARDWARE_BACKEND not in {"cpu", "nvidia", "amd"}:
+        raise ValueError(
+            f"Invalid HARDWARE_BACKEND={HARDWARE_BACKEND}. "
+            "Use one of: cpu, nvidia, amd."
+        )
+
     cpu_cores = _cpu_to_cores(TRIAL_CPU)
     max_cpu_cores = _cpu_to_cores(MAX_CPU_PER_TRIAL)
     if cpu_cores > max_cpu_cores:
@@ -49,13 +68,61 @@ def validate_trial_resources() -> None:
             "Please reduce TRIAL_CPU to <= 2 (or update guardrails if intentional)."
         )
 
-    if int(TRIAL_GPU) > int(MAX_GPU_PER_TRIAL):
+    requested_gpu = 0 if HARDWARE_BACKEND == "cpu" else 1
+    if requested_gpu > int(MAX_GPU_PER_TRIAL):
         raise ValueError(
             "Invalid trial resources.\n"
-            f"- Requested GPU per trial: {TRIAL_GPU}\n"
+            f"- Requested GPU per trial: {requested_gpu}\n"
             f"- Maximum allowed by cluster policy: {MAX_GPU_PER_TRIAL}\n"
-            "Please reduce TRIAL_GPU to <= 1 (or update guardrails if intentional)."
+            "Please use HARDWARE_BACKEND=cpu or increase the cluster guardrail intentionally."
         )
+
+
+def warn_if_gpu_not_advertised() -> None:
+    if not GPU_RESOURCE_KEY:
+        return
+
+    try:
+        output = subprocess.check_output(
+            [
+                "kubectl",
+                "get",
+                "nodes",
+                "-o",
+                "custom-columns=GPU:.status.allocatable." + GPU_RESOURCE_KEY,
+                "--no-headers",
+            ],
+            stderr=subprocess.STDOUT,
+            text=True,
+        ).strip()
+    except Exception:
+        print(
+            "Warning: Could not verify GPU capacity from cluster. "
+            "If no GPU is advertised, GPU trials may remain Pending."
+        )
+        return
+
+    lines = [line.strip() for line in output.splitlines() if line.strip()]
+    has_gpu_key = any(line not in {"<none>", "<unknown>"} for line in lines)
+    if not has_gpu_key:
+        print(
+            f"Warning: HARDWARE_BACKEND={HARDWARE_BACKEND} selected, but cluster does not advertise "
+            f"'{GPU_RESOURCE_KEY}'. Trials may remain Pending. "
+            "Use HARDWARE_BACKEND=cpu on this cluster."
+        )
+
+
+if HARDWARE_BACKEND == "nvidia":
+    TRAINING_IMAGE = NVIDIA_TRAINING_IMAGE
+    GPU_RESOURCE_KEY = "nvidia.com/gpu"
+elif HARDWARE_BACKEND == "amd":
+    TRAINING_IMAGE = AMD_TRAINING_IMAGE
+    GPU_RESOURCE_KEY = "amd.com/gpu"
+else:
+    TRAINING_IMAGE = CPU_TRAINING_IMAGE
+    GPU_RESOURCE_KEY = None
+
+EFFECTIVE_TRIAL_GPU = "1" if GPU_RESOURCE_KEY else "0"
 
 trial_resources = {
     "requests": {
@@ -67,9 +134,9 @@ trial_resources = {
         "memory": TRIAL_MEMORY,
     },
 }
-if TRIAL_GPU != "0":
-    trial_resources["requests"]["nvidia.com/gpu"] = TRIAL_GPU
-    trial_resources["limits"]["nvidia.com/gpu"] = TRIAL_GPU
+if GPU_RESOURCE_KEY and EFFECTIVE_TRIAL_GPU != "0":
+    trial_resources["requests"][GPU_RESOURCE_KEY] = EFFECTIVE_TRIAL_GPU
+    trial_resources["limits"][GPU_RESOURCE_KEY] = EFFECTIVE_TRIAL_GPU
 
 # 3. Define Experiment
 experiment = V1beta1Experiment(
@@ -125,7 +192,7 @@ experiment = V1beta1Experiment(
                             "containers": [
                                 {
                                     "name": "training-container",
-                                    "image": "docker.io/kubeflowkatib/pytorch-mnist-cpu:v0.16.0",
+                                    "image": TRAINING_IMAGE,
                                     "imagePullPolicy": "IfNotPresent",
                                     "resources": trial_resources,
                                     "command": [
@@ -147,9 +214,15 @@ experiment = V1beta1Experiment(
 if __name__ == "__main__":
     try:
         validate_trial_resources()
+        warn_if_gpu_not_advertised()
         client.create_experiment(experiment, namespace=NAMESPACE)
         print(f"Experiment '{EXPERIMENT_NAME}' created successfully.")
-        print(f"  Trial resources: cpu={TRIAL_CPU}, memory={TRIAL_MEMORY}, gpu={TRIAL_GPU}")
+        print(f"  Hardware backend: {HARDWARE_BACKEND}")
+        print(f"  Training image: {TRAINING_IMAGE}")
+        print(
+            f"  Trial resources: cpu={TRIAL_CPU}, memory={TRIAL_MEMORY}, "
+            f"gpu={EFFECTIVE_TRIAL_GPU}"
+        )
         print(f"  Check status: kubectl get experiment -n {NAMESPACE} {EXPERIMENT_NAME}")
         print(f"  Check trials: kubectl get trials -n {NAMESPACE} -l experiment={EXPERIMENT_NAME}")
     except Exception as e:

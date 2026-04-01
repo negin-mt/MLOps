@@ -23,11 +23,9 @@ client = KatibClient()
 # 2. Experiment settings
 EXPERIMENT_NAME = "negin-mnist-hp-tuning-final"
 NAMESPACE = "kubeflow"
-TRIAL_CPU = "10"
-TRIAL_MEMORY = "16Gi"
-# CPU-only by default. Set ENABLE_GPU=true to request GPU per trial.
-ENABLE_GPU = os.getenv("ENABLE_GPU", "false").strip().lower() in {"1", "true", "yes", "on"}
-TRIAL_GPU = "1" if ENABLE_GPU else "0"
+TRIAL_CPU = os.getenv("TRIAL_CPU", "10")
+TRIAL_MEMORY = os.getenv("TRIAL_MEMORY", "16Gi")
+TRIAL_GPU = os.getenv("TRIAL_GPU", "0")
 
 trial_resources = {
     "requests": {
@@ -39,7 +37,7 @@ trial_resources = {
         "memory": TRIAL_MEMORY,
     },
 }
-if ENABLE_GPU:
+if TRIAL_GPU != "0":
     trial_resources["requests"]["nvidia.com/gpu"] = TRIAL_GPU
     trial_resources["limits"]["nvidia.com/gpu"] = TRIAL_GPU
 
@@ -120,7 +118,7 @@ if __name__ == "__main__":
     try:
         client.create_experiment(experiment, namespace=NAMESPACE)
         print(f"Experiment '{EXPERIMENT_NAME}' created successfully.")
-        print(f"  GPU enabled: {ENABLE_GPU}")
+        print(f"  Trial resources: cpu={TRIAL_CPU}, memory={TRIAL_MEMORY}, gpu={TRIAL_GPU}")
         print(f"  Check status: kubectl get experiment -n {NAMESPACE} {EXPERIMENT_NAME}")
         print(f"  Check trials: kubectl get trials -n {NAMESPACE} -l experiment={EXPERIMENT_NAME}")
     except Exception as e:

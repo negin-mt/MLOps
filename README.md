@@ -147,6 +147,33 @@ kubectl describe node | grep -A3 -E "Allocatable|Capacity|nvidia.com/gpu"
 
 If `nvidia.com/gpu` is not present, keep `TRIAL_GPU=0` (default). Trials requesting GPU on CPU-only clusters will stay `Pending`.
 
+### Enforced guardrails (cluster-side, cannot be bypassed by editing Python)
+
+To prevent users from requesting excessive resources (e.g. `TRIAL_CPU=200`), this project applies namespace guardrails in `kubeflow`:
+
+- **LimitRange** (`katib-trial-limits`): per-container hard max and defaults
+- **ResourceQuota** (`katib-quota`): namespace-wide total budget
+
+Defaults in `katib-guardrails.yaml` (good for a local Kind setup):
+
+- Per trial container max: **2 CPU**, **4Gi memory**
+- Namespace total budget: **4 CPU**, **8Gi memory**, **1 GPU**
+
+Applied automatically by `./setup.sh katib` (or `./setup.sh full`), or manually:
+
+```bash
+kubectl apply -f katib-guardrails.yaml
+```
+
+Verify:
+
+```bash
+kubectl get limitrange -n kubeflow
+kubectl get resourcequota -n kubeflow
+kubectl describe limitrange katib-trial-limits -n kubeflow
+kubectl describe resourcequota katib-quota -n kubeflow
+```
+
 ---
 
 ## Server Deployment
@@ -237,6 +264,7 @@ Tesi/
 ├── vscode.yaml           # Code-Server StatefulSet + Service + PVC
 ├── istio-networking.yaml  # Istio Gateway and VirtualService (vscode)
 ├── katib-ui-expose.yaml   # LoadBalancer to expose Katib UI (optional)
+├── katib-guardrails.yaml  # LimitRange + ResourceQuota for trial resource enforcement
 ├── code-server-rbac.yaml # RBAC: Code-Server can create Katib experiments in kubeflow
 ├── Dockerfile.code-server# Custom Code-Server image with Python + kubeflow-katib
 ├── katib_experiment.py   # Python script to create Katib MNIST tuning experiment

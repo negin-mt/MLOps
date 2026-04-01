@@ -111,15 +111,25 @@ kubectl get experiment negin-mnist-hp-tuning -n kubeflow -o jsonpath='{.status.c
 
 - CPU: `10`
 - Memory: `16Gi`
-- GPU: `1` (`nvidia.com/gpu`)
+- GPU: **disabled by default** (CPU-only mode)
 
 In the script, these are configured through:
 
 - `TRIAL_CPU`
 - `TRIAL_MEMORY`
-- `TRIAL_GPU`
+- `ENABLE_GPU` (environment variable toggle)
 
 and applied in `trialTemplate.trialSpec.spec.template.spec.containers[].resources`.
+
+To enable GPU requests (for GPU-enabled servers):
+
+```bash
+ENABLE_GPU=true python3 katib_experiment.py
+```
+
+When `ENABLE_GPU=true`, each trial requests:
+
+- `nvidia.com/gpu: 1`
 
 Verify your node has GPU resources before running:
 
@@ -127,7 +137,7 @@ Verify your node has GPU resources before running:
 kubectl describe node | grep -A3 -E "Allocatable|Capacity|nvidia.com/gpu"
 ```
 
-If `nvidia.com/gpu` is not present, trials requesting GPU will stay `Pending` until the cluster has NVIDIA drivers + device plugin.
+If `nvidia.com/gpu` is not present, keep `ENABLE_GPU=false` (default). Trials requesting GPU on CPU-only clusters will stay `Pending`.
 
 ---
 

@@ -107,33 +107,13 @@ kubectl get experiment negin-mnist-hp-tuning -n kubeflow -o jsonpath='{.status.c
 
 ### Allocate resources per Trial (CPU/GPU)
 
-`katib_experiment.py` can request dedicated resources for each trial worker. Values are user-configurable through environment variables.
+`katib_experiment.py` uses fixed resource values per trial worker (not user-configurable through environment variables):
 
-Default values are:
-
-- CPU: `10`
-- Memory: `16Gi`
+- CPU: `1`
+- Memory: `2Gi`
 - GPU: `0` (**disabled by default**, CPU-only mode)
 
-In the script, these are configured through:
-
-- `TRIAL_CPU`
-- `TRIAL_MEMORY`
-- `TRIAL_GPU`
-
 and applied in `trialTemplate.trialSpec.spec.template.spec.containers[].resources`.
-
-Example: CPU-only custom resources
-
-```bash
-TRIAL_CPU=4 TRIAL_MEMORY=8Gi TRIAL_GPU=0 python3 katib_experiment.py
-```
-
-Example: GPU-enabled custom resources
-
-```bash
-TRIAL_CPU=10 TRIAL_MEMORY=16Gi TRIAL_GPU=1 python3 katib_experiment.py
-```
 
 When `TRIAL_GPU` is greater than `0`, each trial requests:
 
@@ -149,7 +129,7 @@ If `nvidia.com/gpu` is not present, keep `TRIAL_GPU=0` (default). Trials request
 
 ### Enforced guardrails (cluster-side, cannot be bypassed by editing Python)
 
-To prevent users from requesting excessive resources (e.g. `TRIAL_CPU=200`), this project applies namespace guardrails in `kubeflow`:
+To prevent excessive requests (even if someone edits the experiment script), this project applies namespace guardrails in `kubeflow`:
 
 - **LimitRange** (`katib-trial-limits`): per-container hard max and defaults
 - **ResourceQuota** (`katib-quota`): namespace-wide total budget
@@ -172,6 +152,16 @@ kubectl get limitrange -n kubeflow
 kubectl get resourcequota -n kubeflow
 kubectl describe limitrange katib-trial-limits -n kubeflow
 kubectl describe resourcequota katib-quota -n kubeflow
+```
+
+If a user submits a trial above policy, Kubernetes rejects pod creation with a clear message, for example:
+
+`is forbidden: maximum cpu usage per Container is 2, but limit is 3`
+
+Check recent events with:
+
+```bash
+kubectl get events -n kubeflow --sort-by=.lastTimestamp | tail -30
 ```
 
 ---

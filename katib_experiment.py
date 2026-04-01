@@ -4,8 +4,6 @@ Katib Experiment - Hyperparameter tuning with Kubeflow Katib SDK
 This script creates an Experiment in Katib.
 Run from inside VS Code (code-server) with kubeflow-katib and kubernetes installed.
 """
-import os
-
 from kubernetes.client import V1ObjectMeta
 from kubeflow.katib import (
     KatibClient,
@@ -23,9 +21,40 @@ client = KatibClient()
 # 2. Experiment settings
 EXPERIMENT_NAME = "negin-mnist-hp-tuning-final"
 NAMESPACE = "kubeflow"
-TRIAL_CPU = os.getenv("TRIAL_CPU", "10")
-TRIAL_MEMORY = os.getenv("TRIAL_MEMORY", "16Gi")
-TRIAL_GPU = os.getenv("TRIAL_GPU", "0")
+# Fixed trial resources (not user-configurable from env vars).
+# Enforcement is also applied at cluster level via katib-guardrails.yaml.
+TRIAL_CPU = "1"
+TRIAL_MEMORY = "2Gi"
+TRIAL_GPU = "0"
+# Match cluster guardrails (katib-guardrails.yaml) for friendly pre-checks.
+MAX_CPU_PER_TRIAL = "2"
+MAX_GPU_PER_TRIAL = "1"
+
+
+def _cpu_to_cores(cpu_value: str) -> float:
+    if cpu_value.endswith("m"):
+        return float(cpu_value[:-1]) / 1000.0
+    return float(cpu_value)
+
+
+def validate_trial_resources() -> None:
+    cpu_cores = _cpu_to_cores(TRIAL_CPU)
+    max_cpu_cores = _cpu_to_cores(MAX_CPU_PER_TRIAL)
+    if cpu_cores > max_cpu_cores:
+        raise ValueError(
+            "Invalid trial resources.\n"
+            f"- Requested CPU per trial: {TRIAL_CPU}\n"
+            f"- Maximum allowed by cluster policy: {MAX_CPU_PER_TRIAL}\n"
+            "Please reduce TRIAL_CPU to <= 2 (or update guardrails if intentional)."
+        )
+
+    if int(TRIAL_GPU) > int(MAX_GPU_PER_TRIAL):
+        raise ValueError(
+            "Invalid trial resources.\n"
+            f"- Requested GPU per trial: {TRIAL_GPU}\n"
+            f"- Maximum allowed by cluster policy: {MAX_GPU_PER_TRIAL}\n"
+            "Please reduce TRIAL_GPU to <= 1 (or update guardrails if intentional)."
+        )
 
 trial_resources = {
     "requests": {
@@ -116,6 +145,7 @@ experiment = V1beta1Experiment(
 # 4. Create experiment in cluster
 if __name__ == "__main__":
     try:
+        validate_trial_resources()
         client.create_experiment(experiment, namespace=NAMESPACE)
         print(f"Experiment '{EXPERIMENT_NAME}' created successfully.")
         print(f"  Trial resources: cpu={TRIAL_CPU}, memory={TRIAL_MEMORY}, gpu={TRIAL_GPU}")

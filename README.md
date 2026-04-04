@@ -103,6 +103,7 @@ The Code-Server workspace (PVC) starts empty. Copy the experiment script once:
 ```bash
 POD=$(kubectl get pod -n default -l app=code-server -o jsonpath='{.items[0].metadata.name}')
 kubectl cp katib_experiment.py default/$POD:/home/coder/project/katib_experiment.py
+kubectl cp katib_read_results.py default/$POD:/home/coder/project/katib_read_results.py
 ```
 
 ### Run from VS Code
@@ -112,6 +113,18 @@ kubectl cp katib_experiment.py default/$POD:/home/coder/project/katib_experiment
 3. Run: `python3 katib_experiment.py`
 
 The Code-Server image includes `kubeflow-katib` and `kubernetes`; no extra pip install is needed.
+
+### Read results with the Python SDK (same data as kubectl / Katib UI)
+
+Katib stores results in the **Experiment** and **Trial** objects in the API. The SDK reads them with `KatibClient.get_experiment`, `get_optimal_hyperparameters`, and `list_trials`—so you can script reporting without relying only on `kubectl` or the web UI.
+
+```bash
+# Default: EXPERIMENT_NAME=negin-mnist-hp-tuning-final, KATIB_NAMESPACE=kubeflow-user-negin
+python3 katib_read_results.py
+
+# Optional: full Experiment JSON
+python3 katib_read_results.py --full
+```
 
 ### Multi-user namespaces and fair-share quotas
 
@@ -363,6 +376,7 @@ Tesi/
 ├── code-server-rbac.yaml # RBAC: Code-Server can create Katib experiments in kubeflow
 ├── Dockerfile.code-server# Custom Code-Server image with Python + kubeflow-katib
 ├── katib_experiment.py   # Python script to create Katib MNIST tuning experiment
+├── katib_read_results.py # SDK: print experiment status / trials (same info as kubectl/UI)
 ├── requirements.txt      # Python dependencies (for reference)
 ├── docs/
 │   ├── KATIB.md                         # Katib documentation (CRDs, workflow, diagrams)

@@ -1,6 +1,6 @@
 #!/bin/bash
-# MLOps Platform Setup - Kind + MetalLB + Istio + Code-Server + Katib
-# Usage: ./setup.sh [full|cluster|metallb|istio|vscode|katib]
+# MLOps Platform Setup - Kind + MetalLB + Istio + Code-Server + Katib + Monitoring
+# Usage: ./setup.sh [full|cluster|metallb|istio|vscode|katib|monitoring]
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -108,6 +108,11 @@ step_katib() {
   log "Katib installed in namespace kubeflow."
 }
 
+step_monitoring() {
+  log "=== 6. Installing monitoring (Prometheus + Grafana) ==="
+  bash "$SCRIPT_DIR/monitoring/install-monitoring.sh"
+}
+
 print_summary() {
   local ip
   ip=$(kubectl get svc -n istio-system istio-ingressgateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
@@ -127,6 +132,15 @@ print_summary() {
   echo ""
   echo "  Run Katib experiment from VS Code:"
   echo "    python3 katib_experiment.py"
+  if kubectl get ns monitoring &>/dev/null; then
+    local gip pip
+    gip=$(kubectl get svc -n monitoring kube-prometheus-grafana -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+    pip=$(kubectl get svc -n monitoring --no-headers 2>/dev/null | awk '$2=="LoadBalancer" && $5 ~ /^9090/ {print $4; exit}')
+    echo ""
+    echo "  Monitoring (if installed):"
+    echo "    Grafana:    http://${gip:-<pending>}/"
+    echo "    Prometheus: http://${pip:-<pending>}:9090/"
+  fi
   echo "=============================================="
 }
 
@@ -138,6 +152,7 @@ case "$MODE" in
     step_istio
     step_vscode
     step_katib
+    step_monitoring
     print_summary
     ;;
   cluster)  step_cluster ;;
@@ -145,8 +160,9 @@ case "$MODE" in
   istio)    step_istio ;;
   vscode)   step_vscode ;;
   katib)    step_katib ;;
+  monitoring) step_monitoring ;;
   *)
-    echo "Usage: $0 {full|cluster|metallb|istio|vscode|katib}"
+    echo "Usage: $0 {full|cluster|metallb|istio|vscode|katib|monitoring}"
     exit 1
     ;;
 esac

@@ -18,6 +18,7 @@ Thesis project: Simulating a cloud environment locally for MLOps development and
 - `kind`
 - `kubectl`
 - `istioctl` (for Istio installation)
+- `curl` (used by the monitoring installer to fetch Helm if needed)
 
 ## Quick Install
 
@@ -27,7 +28,7 @@ chmod +x setup.sh
 ./setup.sh full
 ```
 
-This will: create Kind cluster, install MetalLB, Istio, Code-Server (with Python image), and Katib. RBAC is applied so Code-Server can create Katib experiments.
+This will: create Kind cluster, install MetalLB, Istio, Code-Server (with Python image), Katib, and **Prometheus + Grafana** (see [Monitoring](#monitoring)). RBAC is applied so Code-Server can create Katib experiments.
 
 ## Step-by-Step Install
 
@@ -37,7 +38,27 @@ This will: create Kind cluster, install MetalLB, Istio, Code-Server (with Python
 ./setup.sh istio      # Install Istio
 ./setup.sh vscode     # Install Code-Server and Istio Gateway (builds Python image)
 ./setup.sh katib      # Install Katib standalone and RBAC
+./setup.sh monitoring # Prometheus + Grafana only (Helm chart)
 ```
+
+## Monitoring
+
+The stack uses **kube-prometheus-stack** (Prometheus Operator, Prometheus, Grafana, node-exporter, kube-state-metrics). Grafana and Prometheus are exposed via **MetalLB LoadBalancer** services (`monitoring/values-kind.yaml`).
+
+**Install without re-running the full platform:**
+
+```bash
+chmod +x monitoring/install-monitoring.sh
+./monitoring/install-monitoring.sh
+```
+
+Default Grafana login: user `admin`, password `mlops-grafana` (change `grafana.adminPassword` in `monitoring/values-kind.yaml` for shared or production clusters).
+
+```bash
+kubectl get svc -n monitoring
+```
+
+More detail: **[docs/MONITORING.md](docs/MONITORING.md)**.
 
 ## Access
 
@@ -243,6 +264,26 @@ To deploy on a remote server:
 
 The server must allow inbound traffic on ports 80 and 443 (or the ports configured in `kind-config.yaml`).
 
+### Future: production cluster with NVIDIA GPUs (device plugin)
+
+Local Kind setups are often **CPU-only**: nodes do not advertise `nvidia.com/gpu`, so GPU trial templates stay `Pending` until the **cluster** exposes GPUs. For a **real** NVIDIA GPU cluster (e.g. university server, cloud GPU nodes), cluster administrators typically install:
+
+1. **NVIDIA driver** on GPU worker nodes  
+2. **NVIDIA Container Toolkit** so the container runtime can use GPUs  
+3. **[NVIDIA Kubernetes Device Plugin](https://github.com/NVIDIA/k8s-device-plugin#quick-start)** so Kubernetes reports GPU capacity (`nvidia.com/gpu`) on nodes
+
+This repository does **not** replace step 3: `katib_experiment.py` requests `nvidia.com/gpu` when `HARDWARE_BACKEND=nvidia`; the device plugin (or your cloud’s equivalent) is what makes that resource exist for the scheduler.
+
+**Verify after cluster setup:**
+
+```bash
+kubectl describe node <gpu-node-name> | grep -E "Allocatable|nvidia.com/gpu"
+```
+
+**AMD / ROCm:** use your distribution’s device plugin or operator so nodes advertise `amd.com/gpu` (same idea as NVIDIA; see also `HARDWARE_BACKEND=amd` in `katib_experiment.py`).
+
+**Sharing GPUs fairly** across users remains a **policy** concern: keep using **namespaces**, **ResourceQuota**, and **LimitRange** (see `multi-user-namespaces.yaml` and `katib-guardrails.yaml`). The device plugin enables scheduling; quotas enforce fair use.
+
 ---
 
 ## Troubleshooting
@@ -308,7 +349,10 @@ For detailed Katib documentation (CRDs, user workflow, results), see **[docs/KAT
 
 ```
 Tesi/
-├── setup.sh              # Main setup script (Kind, MetalLB, Istio, Code-Server, Katib)
+├── setup.sh              # Main setup script (Kind, MetalLB, Istio, Code-Server, Katib, monitoring)
+├── monitoring/
+│   ├── install-monitoring.sh  # Helm: kube-prometheus-stack (Prometheus + Grafana)
+│   └── values-kind.yaml       # Kind-friendly chart values (LoadBalancer, smaller retention)
 ├── kind-config.yaml      # Kind configuration (port mappings 80, 443)
 ├── metallb-config.yaml   # MetalLB IP pool (optional; setup.sh creates it)
 ├── vscode.yaml           # Code-Server StatefulSet + Service + PVC
@@ -322,6 +366,7 @@ Tesi/
 ├── requirements.txt      # Python dependencies (for reference)
 ├── docs/
 │   ├── KATIB.md                         # Katib documentation (CRDs, workflow, diagrams)
+│   ├── MONITORING.md                    # Prometheus + Grafana install notes
 │   ├── katib-architecture.drawio.svg    # Diagram 1 (architecture)
 │   ├── katib-user-workflow.png          # Diagram 2 (user workflow)
 │   └── katib-trial-pod-structure.png    # Diagram 3 (trial pod)

@@ -1,0 +1,61 @@
+# kube-prometheus-stack overrides for local Kind / small clusters.
+# Chart: prometheus-community/kube-prometheus-stack
+#
+# Exposes Grafana and Prometheus via LoadBalancer (MetalLB in this project).
+# Default Grafana login: admin / password below (change for any shared or production cluster).
+
+grafana:
+  enabled: true
+  # Change this before exposing Grafana on a real network.
+  adminPassword: mlops-grafana
+  persistence:
+    enabled: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+  service:
+    type: LoadBalancer
+    port: 80
+
+prometheus:
+  prometheusSpec:
+    retention: 24h
+    scrapeInterval: 30s
+    evaluationInterval: 30s
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+  service:
+    type: LoadBalancer
+    port: 9090
+
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+nodeExporter:
+  enabled: true
+
+defaultRules:
+  create: true

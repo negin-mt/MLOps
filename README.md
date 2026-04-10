@@ -98,11 +98,22 @@ Then open `http://localhost:8080/katib/`.
 
 Use this when you only want to validate experiment creation/execution from the UI.
 
+### If the UI has no “Metrics format” field (and you do not use YAML)
+
+The `pytorch-mnist` image prints metrics like `{metricName: accuracy, metricValue: ...}`. Katib needs a **regex** (`metricsFormat`) on the Experiment to read that from StdOut. Many Katib UIs only let you pick **StdOut** and **never show a field for the regex**, and **“Edit and submit YAML”** may be disabled or unavailable. In that situation **the form alone cannot fix MetricsUnavailable**; it is a UI/product gap, not something you misconfigured.
+
+**Practical approach (no YAML files, no kubectl apply):**
+
+1. **Create the experiment from VS Code** with the Python SDK: run `python3 katib_experiment.py` (see [Run from VS Code](#run-from-vscode) below). That script sets `metricsCollectorSpec` and the correct objective; it talks to the API directly.
+2. **Use the Katib UI only to watch** experiments, trials, and graphs after they exist.
+
+You still get a normal Katib workflow; only the **creation** step moves from the broken form to one command in the editor.
+
 ### UI fields to fill
 
 - **Experiment Name**: `ui-test-experiment` (must be lowercase)
 - **Namespace**: `kubeflow-user-negin`
-- **Objective**: `maximize`, metric name `accuracy`, goal `0.99`
+- **Objective**: `maximize`, metric name `accuracy`, goal `0.99` (do not add extra metrics such as `Train-accuracy` unless the image logs them)
 - **Algorithm**: `random`
 - **Max Trials**: `4`
 - **Parallel Trials**: `1` (quota-safe for this local setup)
@@ -113,7 +124,7 @@ Use this when you only want to validate experiment creation/execution from the U
   - min: `0.01`
   - max: `0.1`
 - **Metrics Collector**: `StdOut`
-- **Metrics Format**:
+- **Metrics format** (only if your UI shows this field; otherwise use `katib_experiment.py` as above):
   - `\{metricName: ([\w|-]+), metricValue: ((-?\d+)(\.\d+)?)\}`
 - **Primary Container Name**: `training-container`
 - **Success Condition**: `status.conditions.#(type=="Complete")`
@@ -159,6 +170,33 @@ spec:
 - **`exceeded quota: user-quota`**
   - Reduce parallelism to `1` (recommended for local test), or reduce requested resources.
 
+### Bug encountered: “Experiment has failed because max failed count has reached”
+
+This showed up while creating experiments from the **Katib UI** with the **`pytorch-mnist`** example image (`docker.io/kubeflowkatib/pytorch-mnist-cpu`).
+
+**What it looked like**
+
+- The Katib UI reported the experiment as failed with a message like **“Experiment has failed because max failed count has reached.”**
+- Individual trials often ended as **`MetricsUnavailable`** even when the Kubernetes **Job completed** and the training pod had run.
+- `kubectl describe trial …` / trial status showed **MetricsUnavailable** and metrics (**`accuracy`**, or extra names like **`Train-accuracy`**) as **unavailable**.
+
+**What was actually wrong**
+
+1. **StdOut without `metricsFormat`** — The UI only offered **StdOut** for the metrics collector and did **not** expose a field to set the **regex** (`metricsFormat`). The live Experiment CR then had `metricsCollectorSpec.collector.kind: StdOut` but **no** `source.filter.metricsFormat`. Katib could not parse lines such as `{metricName: accuracy, metricValue: …}` from the container logs, so it treated trials as failed for metrics.
+2. **Wrong objective metric names** — Using **`Validation-accuracy`** or **`Train-accuracy`** as the primary metric when the image reports **`accuracy`** under that log format also prevents a successful observation.
+3. **Extra “additional” metrics** — Adding **`Train-accuracy`** (or similar) in the objective when the training job does not emit that **exact** metric name worsens or triggers unavailable metrics.
+4. **Trial template vs hyperparameters** — A template that references **`${trialParameters.momentum}`** (e.g. default ConfigMap example) while only **`lr`** is defined in the wizard causes parameter/substitution mismatches.
+5. **`maxFailedTrialCount` too low** — e.g. **`1`** stops the whole experiment on the first metrics failure, which is easy to hit when (1) applies.
+
+**Why the UI alone could not fix it**
+
+Many Katib builds **do not** show a **metrics format** input next to StdOut, and **YAML submit** may be unavailable. Without setting `metricsFormat` on the Experiment (API/YAML/SDK), the form path **cannot** fix the parsing issue.
+
+**What worked**
+
+- **Create the experiment with** `python3 katib_experiment.py` **from VS Code** (SDK sets `metricsCollectorSpec` including the regex), **or** apply a full Experiment manifest that includes `metricsCollectorSpec.source.filter.metricsFormat`.
+- In the UI (for future runs or other clusters): objective metric **`accuracy`**, **no** spurious additional metrics, **StdOut** + metrics format if the UI provides it, trial command aligned with hyperparameters only, **parallel trials: 1** if quota errors appear, **`maxFailedTrialCount` ≥ 3** while debugging.
+
 ---
 
 ## Running Katib Experiment
@@ -187,11 +225,27 @@ Katib stores results in the **Experiment** and **Trial** objects in the API. The
 
 ```bash
 # Default: EXPERIMENT_NAME=negin-mnist-hp-tuning-final, KATIB_NAMESPACE=kubeflow-user-negin
+# Human-friendly table (good for demos, screenshots, thesis discussion)
+python3 katib_read_results.py --summary
+
+# Technical JSON-style dump (status + trials)
 python3 katib_read_results.py
 
-# Optional: full Experiment JSON
+# Full Experiment object
 python3 katib_read_results.py --full
 ```
+
+#### User-friendly ways to get results (for supervision / reports)
+
+“User friendly” is not a single screen: different audiences need different surfaces.
+
+| Approach | Who it suits | Role |
+|----------|----------------|------|
+| **Katib UI** (`/katib/`) | Non-developers, exploration | Charts, trial list, experiment status — **most visual**, when experiments complete successfully. |
+| **`python3 katib_read_results.py --summary`** | You + your professor + reproducible reports | One command from VS Code: objective, condition, optimal hyperparameters, trial table with metric column — **no raw YAML**. |
+| **`kubectl get experiment/trials -o yaml`** | Operators, debugging | Exact cluster state; less readable for stakeholders. |
+
+**Honest limitation you can state in the thesis:** the stock Katib **create** wizard often omits StdOut **metrics format**, which can block successful metrics in the UI until experiments are created via the **SDK** (or YAML). That does **not** block **getting results back** in a friendly way: once tuning runs correctly, the **same** results appear in the **UI** and in **`--summary`**. The recommended story for “best way to get results back” is therefore: **create with `katib_experiment.py`**, **monitor in Katib UI**, **export / present with `katib_read_results.py --summary`** (and UI screenshots where useful).
 
 ### Multi-user namespaces and fair-share quotas
 

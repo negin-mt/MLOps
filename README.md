@@ -94,6 +94,73 @@ Then open `http://localhost:8080/katib/`.
 
 ---
 
+## Katib UI Quick Test (minimal working setup)
+
+Use this when you only want to validate experiment creation/execution from the UI.
+
+### UI fields to fill
+
+- **Experiment Name**: `ui-test-experiment` (must be lowercase)
+- **Namespace**: `kubeflow-user-negin`
+- **Objective**: `maximize`, metric name `accuracy`, goal `0.99`
+- **Algorithm**: `random`
+- **Max Trials**: `4`
+- **Parallel Trials**: `1` (quota-safe for this local setup)
+- **Max Failed Trials**: `3`
+- **Parameter** (one only):
+  - name: `lr`
+  - type: `double`
+  - min: `0.01`
+  - max: `0.1`
+- **Metrics Collector**: `StdOut`
+- **Metrics Format**:
+  - `\{metricName: ([\w|-]+), metricValue: ((-?\d+)(\.\d+)?)\}`
+- **Primary Container Name**: `training-container`
+- **Success Condition**: `status.conditions.#(type=="Complete")`
+- **Failure Condition**: `status.conditions.#(type=="Failed")`
+- **Trial Parameter mapping**:
+  - name: `learningRate`
+  - reference: `lr`
+
+### TrialSpec YAML (paste in UI editor)
+
+```yaml
+apiVersion: batch/v1
+kind: Job
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: training-container
+          image: docker.io/kubeflowkatib/pytorch-mnist-cpu:v0.16.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - python3
+            - /opt/pytorch-mnist/mnist.py
+            - --lr=${trialParameters.learningRate}
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+```
+
+### Common UI errors and fixes
+
+- **`metadata.name ... lowercase RFC 1123`**
+  - Use lowercase names only (example: `ui-test-experiment`).
+- **`spec.trialTemplate.trialParameters must be specified`**
+  - Add trial parameter mapping (`learningRate -> lr`) and use `${trialParameters.learningRate}` in command.
+- **`Number of TrialAssignment ... != ... TrialSpec`**
+  - Parameter count mismatch: keep one parameter (`lr`) for this YAML, or wire all parameters into command and trial mappings.
+- **`exceeded quota: user-quota`**
+  - Reduce parallelism to `1` (recommended for local test), or reduce requested resources.
+
+---
+
 ## Running Katib Experiment
 
 ### First-Time Setup: Copy Script into Code-Server

@@ -1,6 +1,6 @@
 #!/bin/bash
 # MLOps Platform Setup - Kind + MetalLB + Istio + Code-Server + Katib + Monitoring
-# Usage: ./setup.sh [full|cluster|metallb|istio|vscode|katib|monitoring]
+# Usage: ./setup.sh [full|cluster|metallb|istio|vscode|katib|minio|monitoring]
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,6 +9,7 @@ cd "$SCRIPT_DIR"
 CLUSTER_NAME="${CLUSTER_NAME:-kind}"
 METALLB_IP_START="${METALLB_IP_START:-172.20.255.200}"
 METALLB_IP_END="${METALLB_IP_END:-172.20.255.250}"
+STATE_DIR="${SCRIPT_DIR}/.state"
 
 log() { echo "[$(date +%H:%M:%S)] $*"; }
 err() { echo "[ERROR] $*" >&2; }
@@ -108,6 +109,117 @@ step_katib() {
   log "Katib installed in namespace kubeflow."
 }
 
+step_minio() {
+  log "=== 5b. Installing MinIO object storage ==="
+
+  # ── credentials (generated once, persisted locally) ─────────────────────────
+  local minio_user_file="${STATE_DIR}/minio-root-user.txt"
+  local minio_pass_file="${STATE_DIR}/minio-root-password.txt"
+  mkdir -p "${STATE_DIR}"
+
+  if [[ ! -f "${minio_user_file}" ]]; then
+    python3 -c \
+      "import secrets,string; a=string.ascii_letters+string.digits; print(''.join(secrets.choice(a) for _ in range(12)),end='')" \
+      > "${minio_user_file}"
+  fi
+  if [[ ! -f "${minio_pass_file}" ]]; then
+    python3 -c \
+      "import secrets,string; a=string.ascii_letters+string.digits; print(''.join(secrets.choice(a) for _ in range(28)),end='')" \
+      > "${minio_pass_file}"
+  fi
+
+  local minio_user minio_pass
+  minio_user="$(<"${minio_user_file}")"
+  minio_pass="$(<"${minio_pass_file}")"
+
+  # ── namespace ────────────────────────────────────────────────────────────────
+  kubectl create namespace platform --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+
+  # ── Helm install ─────────────────────────────────────────────────────────────
+  if ! helm repo list 2>/dev/null | grep -q "^minio"; then
+    helm repo add minio https://charts.min.io/ >/dev/null 2>&1 || true
+  fi
+  helm repo update >/dev/null
+
+  log "Installing MinIO (standalone, chart 5.4.0)..."
+  helm upgrade --install minio minio/minio \
+    --namespace platform \
+    --version 5.4.0 \
+    --set mode=standalone \
+    --set replicas=1 \
+    --set persistence.size=10Gi \
+    --set resources.requests.cpu=250m \
+    --set resources.requests.memory=512Mi \
+    --set resources.limits.cpu=1 \
+    --set resources.limits.memory=2Gi \
+    --set rootUser="${minio_user}" \
+    --set rootPassword="${minio_pass}" \
+    --set 'buckets[0].name=negin' \
+    --set 'buckets[0].policy=none' \
+    --set 'buckets[0].purge=false' \
+    --set 'buckets[1].name=yousef' \
+    --set 'buckets[1].policy=none' \
+    --set 'buckets[1].purge=false' \
+    --wait >/dev/null
+
+  kubectl rollout status deployment/minio -n platform --timeout=300s >/dev/null
+
+  # ── artifact-store secret in each user namespace ─────────────────────────────
+  # The student_lab Python library reads these env-var-backed secrets to
+  # connect to MinIO from inside Katib trial pods and training jobs.
+  for ns in kubeflow-user-negin kubeflow-user-yousef; do
+    kubectl -n "${ns}" create secret generic artifact-store \
+      --from-literal=endpoint=http://minio.platform.svc.cluster.local:9000 \
+      --from-literal=secure=false \
+      --from-literal=accessKey="${minio_user}" \
+      --from-literal=secretKey="${minio_pass}" \
+      --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+  done
+
+  # ── root secret in platform namespace (used by setup scripts if needed) ──────
+  kubectl -n platform create secret generic artifact-store-root \
+    --from-literal=endpoint=http://minio.platform.svc.cluster.local:9000 \
+    --from-literal=secure=false \
+    --from-literal=accessKey="${minio_user}" \
+    --from-literal=secretKey="${minio_pass}" \
+    --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+
+  # ── expose MinIO console via Istio (so users can upload datasets from browser) ─
+  # The MetalLB IP is read from the Istio ingress gateway service
+  local lb_ip
+  lb_ip=$(kubectl get svc istio-ingressgateway -n istio-system \
+    -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
+
+  kubectl apply -f - >/dev/null <<MINIO_VS
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: minio-console
+  namespace: platform
+spec:
+  hosts:
+    - "minio.${lb_ip}.nip.io"
+  gateways:
+    - istio-system/$(kubectl get gateway -A -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "istio-gateway")
+  http:
+    - match:
+        - authority:
+            prefix: "minio."
+      route:
+        - destination:
+            host: minio.platform.svc.cluster.local
+            port:
+              number: 9001
+MINIO_VS
+
+  log "MinIO ready. Empty buckets created: negin, yousef"
+  log "  Internal API: http://minio.platform.svc.cluster.local:9000"
+  if [[ -n "${lb_ip}" ]]; then
+    log "  Console UI:   http://minio.${lb_ip}.nip.io  (username: ${minio_user})"
+  fi
+  log "  Credentials: ${STATE_DIR}/minio-root-{user,password}.txt"
+}
+
 step_monitoring() {
   log "=== 6. Installing monitoring (Prometheus + Grafana) ==="
   bash "$SCRIPT_DIR/monitoring/install-monitoring.sh"
@@ -147,11 +259,13 @@ print_summary() {
 MODE="${1:-full}"
 case "$MODE" in
   full)
+    mkdir -p "$STATE_DIR"
     step_cluster
     step_metallb
     step_istio
     step_vscode
     step_katib
+    step_minio
     step_monitoring
     print_summary
     ;;
@@ -160,9 +274,10 @@ case "$MODE" in
   istio)    step_istio ;;
   vscode)   step_vscode ;;
   katib)    step_katib ;;
+  minio)    step_minio ;;
   monitoring) step_monitoring ;;
   *)
-    echo "Usage: $0 {full|cluster|metallb|istio|vscode|katib|monitoring}"
+    echo "Usage: $0 {full|cluster|metallb|istio|vscode|katib|minio|monitoring}"
     exit 1
     ;;
 esac

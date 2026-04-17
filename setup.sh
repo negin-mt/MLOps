@@ -1,6 +1,6 @@
 #!/bin/bash
 # MLOps Platform Setup - Kind + MetalLB + Istio + Code-Server + Katib + Monitoring
-# Usage: ./setup.sh [full|cluster|metallb|istio|vscode|katib|minio|monitoring]
+# Usage: ./setup.sh [full|cluster|metallb|istio|vscode|katib|minio|build-images|monitoring]
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -220,6 +220,21 @@ MINIO_VS
   log "  Credentials: ${STATE_DIR}/minio-root-{user,password}.txt"
 }
 
+step_build_images() {
+  log "=== Building ML runtime image ==="
+
+  # Build the ML runtime image (for Katib trials and training jobs)
+  docker build \
+    -f "${SCRIPT_DIR}/Dockerfile.ml-runtime" \
+    -t ml-runtime:latest \
+    "${SCRIPT_DIR}" >/dev/null
+
+  log "Loading ml-runtime:latest into Kind cluster..."
+  kind load docker-image ml-runtime:latest --name "${CLUSTER_NAME}" >/dev/null
+
+  log "ml-runtime:latest ready in cluster."
+}
+
 step_monitoring() {
   log "=== 6. Installing monitoring (Prometheus + Grafana) ==="
   bash "$SCRIPT_DIR/monitoring/install-monitoring.sh"
@@ -266,6 +281,7 @@ case "$MODE" in
     step_vscode
     step_katib
     step_minio
+    step_build_images
     step_monitoring
     print_summary
     ;;
@@ -275,9 +291,10 @@ case "$MODE" in
   vscode)   step_vscode ;;
   katib)    step_katib ;;
   minio)    step_minio ;;
+  build-images) step_build_images ;;
   monitoring) step_monitoring ;;
   *)
-    echo "Usage: $0 {full|cluster|metallb|istio|vscode|katib|minio|monitoring}"
+    echo "Usage: $0 {full|cluster|metallb|istio|vscode|katib|minio|build-images|monitoring}"
     exit 1
     ;;
 esac

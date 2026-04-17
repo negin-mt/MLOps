@@ -4,3 +4,5 @@ __pycache__/
 .DS_Store
 .tools/
 .state/
+CLUADE.md
+.specs-for-codex/

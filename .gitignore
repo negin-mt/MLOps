@@ -4,5 +4,10 @@ __pycache__/
 .DS_Store
 .tools/
 .state/
-CLUADE.md
+CLAUDE.md
 .specs-for-codex/
+.github/
+.git/
+.codex-work-log/
+.claude/
+suggests-for-modification-joseph-platform.md

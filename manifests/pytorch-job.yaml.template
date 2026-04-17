@@ -1,0 +1,56 @@
+# PyTorchJob template — rendered by: python3 -m student_lab.render_manifests
+# WORKFLOW: RF (RandomForest, student_lab.train_model entrypoint)
+#
+# For single-node training (default): 1 Master replica, no Workers.
+# For distributed training: add a Workers spec below Master with replicas > 1.
+#
+# GPU resource extension — add to both requests and limits under resources:
+#   NVIDIA GPU:  nvidia.com/gpu: "1"
+#   AMD GPU:     amd.com/gpu: "1"
+#
+# Image: __RUNTIME_IMAGE__ = images.runtime from project.yaml (ml-runtime:latest).
+# For PyTorch neural network training, set images.runtime to a PyTorch image
+# (e.g., the value in images.pytorch) and rebuild/reload into Kind.
+apiVersion: kubeflow.org/v1
+kind: PyTorchJob
+metadata:
+  name: __STUDENT__-pytorch-train
+  namespace: __NAMESPACE__
+spec:
+  pytorchReplicaSpecs:
+    Master:
+      replicas: 1
+      restartPolicy: OnFailure
+      template:
+        spec:
+          serviceAccountName: __SERVICE_ACCOUNT__
+          containers:
+            - name: pytorch
+              image: __RUNTIME_IMAGE__
+              command:
+                - python
+                - -m
+                - student_lab.train_model
+                - --config
+                - /workspace/project/project.yaml
+              resources:
+                requests:
+                  cpu: "__CPU_REQUEST__"
+                  memory: "__MEMORY_REQUEST__"
+                limits:
+                  cpu: "__CPU_LIMIT__"
+                  memory: "__MEMORY_LIMIT__"
+              env:
+                - name: PROJECT_ROOT
+                  value: /workspace/project
+              envFrom:
+                # MinIO credentials injected from the artifact-store Secret (created in WP-1)
+                - secretRef:
+                    name: artifact-store
+              volumeMounts:
+                - name: workspace
+                  mountPath: /workspace/project
+          volumes:
+            - name: workspace
+              persistentVolumeClaim:
+                claimName: __WORKSPACE_PVC__

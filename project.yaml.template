@@ -1,0 +1,154 @@
+# project.yaml — ML Project Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+# SETUP INSTRUCTIONS:
+#
+# 1. Copy this file to your Code-Server workspace:
+#      bash /usr/local/bin/init-workspace
+#    (This runs once and copies the template to /home/coder/project/project.yaml)
+#
+# 2. Edit every field marked with ← FILL IN before running any commands.
+#
+# 3. Upload your real dataset to MinIO via the student_lab SDK:
+#      from student_lab.storage import put_bytes
+#      put_bytes("s3://YOUR_BUCKET/datasets/your-dataset.csv", open("data.csv","rb").read())
+#
+# 4. Run the manifest renderer to generate Kubernetes YAML files:
+#      python3 -m student_lab.render_manifests
+# ─────────────────────────────────────────────────────────────────────────────
+
+project:
+  name: my-ml-project                 # ← FILL IN: short name for your project
+  # task type: "regression" or "classification"
+  task: regression                    # ← FILL IN
+  # The metric name that Katib and training scripts optimize.
+  # For regression use "rmse". For classification use "accuracy".
+  objective_metric_name: rmse         # ← FILL IN
+
+dataset:
+  # Full S3 URI to your dataset file in MinIO.
+  # Replace YOUR_BUCKET with "negin" or "yousef" (your MinIO bucket name).
+  uri: s3://YOUR_BUCKET/datasets/YOUR_DATASET.csv   # ← FILL IN
+  # Folder prefix for auto-selecting the latest uploaded dataset file.
+  prefix: datasets/
+  # If true, ignores 'uri' and picks the most recently modified file under 'prefix'.
+  auto_select_latest: false
+  # Column to predict (must exist in your CSV).
+  target_column: your_target_column   # ← FILL IN
+  # Input feature columns (must exist in your CSV).
+  feature_columns:                    # ← FILL IN
+    - feature_col_1
+    - feature_col_2
+  test_size: 0.2
+  random_state: 42
+
+model:
+  algorithm: random_forest
+  # Default hyperparameter values used when running without Katib best params.
+  defaults:
+    n_estimators: 100
+    max_depth: 10
+    min_samples_split: 4
+    min_samples_leaf: 2
+
+katib:
+  # Total number of hyperparameter search trials.
+  # Keep low (4-8) on a laptop to avoid resource exhaustion.
+  max_trial_count: 6
+  max_failed_trial_count: 3
+  # How many trials run in parallel. Keep at 1 on a laptop.
+  parallel_trial_count: 1
+  # Search space for RandomForest hyperparameters.
+  parameters:
+    n_estimators:
+      min: 50
+      max: 300
+    max_depth:
+      min: 3
+      max: 20
+    min_samples_split:
+      min: 2
+      max: 12
+    min_samples_leaf:
+      min: 1
+      max: 8
+
+compute:
+  # target: "cpu" | "nvidia_sim" | "amd_sim"
+  # "nvidia_sim" / "amd_sim" require the NVIDIA/AMD device plugin in the cluster.
+  target: cpu                         # ← FILL IN if using GPU
+  cpu:
+    requests:
+      cpu: "1"
+      memory: "2Gi"
+    limits:
+      # Max 2 CPUs per the cluster LimitRange in multi-user-namespaces.yaml
+      cpu: "2"
+      memory: "4Gi"
+  nvidia_sim:
+    requests:
+      cpu: "2"
+      memory: "4Gi"
+    limits:
+      cpu: "4"
+      memory: "8Gi"
+  amd_sim:
+    requests:
+      cpu: "2"
+      memory: "4Gi"
+    limits:
+      cpu: "4"
+      memory: "8Gi"
+
+serving:
+  port: 8081
+  replicas: 1
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+# ── Kubernetes binding ────────────────────────────────────────────────────────
+student:
+  name: your-name                      # ← FILL IN: e.g. "negin" or "yousef"
+  # Your Kubernetes namespace:
+  #   negin  → kubeflow-user-negin
+  #   yousef → kubeflow-user-yousef
+  namespace: YOUR_NAMESPACE            # ← FILL IN
+  # Your MinIO bucket name: "negin" or "yousef"
+  bucket: YOUR_BUCKET                  # ← FILL IN
+
+kubernetes:
+  # The Code-Server workspace PVC name (StatefulSet creates it as workspace-data-code-server-0).
+  # Training pods must mount this PVC to access project.yaml inside the cluster.
+  workspace_pvc: workspace-data-code-server-0
+  service_account: default
+
+images:
+  # The ML runtime image for scikit-learn training jobs (built in WP-2b).
+  # Do not change unless you have built and loaded a different image.
+  runtime: ml-runtime:latest
+  # PyTorch image for neural network training via PyTorchJob.
+  # This field is informational — to use it, set images.runtime to this value
+  # and rebuild/reload the image. See manifests/pytorch-job.yaml.template comments.
+  # Replace with your specific PyTorch+CUDA version for GPU training.
+  pytorch: pytorch/pytorch:2.2.2-cuda12.1-cudnn8-runtime
+
+artifacts:
+  # MinIO bucket where trained models and evaluation reports are saved.
+  bucket: YOUR_BUCKET                  # ← FILL IN (same as student.bucket)
+  model_prefix: models
+  evaluation_prefix: evaluations
+
+network:
+  # Katib UI URL. Find this from the MetalLB IP after running setup.sh:
+  #   kubectl get svc -n istio-system istio-ingressgateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+  # Then: http://<IP>/katib
+  katib_host: ""
+  # Inference API endpoint — fill in after deploying a served model.
+  inference_host: ""
+
+cluster:
+  # "simulated" if no GPU device plugin is installed, "real" if NVIDIA/AMD device plugin is active.
+  compute_mode: simulated             # ← change to "real" when GPU device plugin is deployed

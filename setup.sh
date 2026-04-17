@@ -1,6 +1,6 @@
 #!/bin/bash
 # MLOps Platform Setup - Kind + MetalLB + Istio + Code-Server + Katib + Monitoring
-# Usage: ./setup.sh [full|cluster|metallb|istio|vscode|katib|minio|build-images|monitoring]
+# Usage: ./setup.sh [full|cluster|metallb|istio|vscode|katib|training-operator|minio|build-images|monitoring]
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -107,6 +107,35 @@ step_katib() {
   log "Applying Katib trial guardrails (LimitRange + ResourceQuota)..."
   kubectl apply -f katib-guardrails.yaml
   log "Katib installed in namespace kubeflow."
+}
+
+step_training_operator() {
+  log "=== 4b. Installing Kubeflow Training Operator ==="
+
+  # Install Training Operator standalone from upstream Kubeflow manifests.
+  # Installs into the 'kubeflow' namespace alongside Katib.
+  # Version v1.8.0 — provides PyTorchJob, TFJob, MPIJob, XGBoostJob, PaddleJob CRDs.
+  # FUTURE: When migrating to full Kubeflow stack, this step becomes redundant
+  # (Training Operator is included). Guard or remove it at that point.
+  kubectl apply --server-side \
+    -k "github.com/kubeflow/training-operator/manifests/overlays/standalone?ref=v1.8.0" \
+    >/dev/null
+
+  # Wait for CRDs to be established before checking the controller
+  kubectl wait --for=condition=established \
+    crd/pytorchjobs.kubeflow.org --timeout=60s >/dev/null
+
+  # Wait for Training Operator controller to be ready
+  kubectl rollout status deployment/training-operator \
+    -n kubeflow --timeout=300s >/dev/null
+
+  # Apply RBAC granting user namespaces permission to create training jobs.
+  # This is additive — does NOT modify multi-user-namespaces.yaml.
+  kubectl apply -f "${SCRIPT_DIR}/training-operator-rbac.yaml" >/dev/null
+
+  log "Training Operator ready."
+  log "  CRDs available: PyTorchJob, TFJob, MPIJob, XGBoostJob, PaddleJob"
+  log "  RBAC applied for: kubeflow-user-negin, kubeflow-user-yousef"
 }
 
 step_minio() {
@@ -280,6 +309,7 @@ case "$MODE" in
     step_istio
     step_vscode
     step_katib
+    step_training_operator
     step_minio
     step_build_images
     step_monitoring
@@ -290,11 +320,12 @@ case "$MODE" in
   istio)    step_istio ;;
   vscode)   step_vscode ;;
   katib)    step_katib ;;
+  training-operator) step_training_operator ;;
   minio)    step_minio ;;
   build-images) step_build_images ;;
   monitoring) step_monitoring ;;
   *)
-    echo "Usage: $0 {full|cluster|metallb|istio|vscode|katib|minio|build-images|monitoring}"
+    echo "Usage: $0 {full|cluster|metallb|istio|vscode|katib|training-operator|minio|build-images|monitoring}"
     exit 1
     ;;
 esac

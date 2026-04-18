@@ -43,10 +43,26 @@ spec:
               env:
                 - name: PROJECT_ROOT
                   value: /workspace/project
-              envFrom:
-                # MinIO credentials injected from the artifact-store Secret (created in WP-1)
-                - secretRef:
-                    name: artifact-store
+                - name: OBJECT_STORAGE_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      name: artifact-store
+                      key: endpoint
+                - name: OBJECT_STORAGE_SECURE
+                  valueFrom:
+                    secretKeyRef:
+                      name: artifact-store
+                      key: secure
+                - name: OBJECT_STORAGE_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: artifact-store
+                      key: accessKey
+                - name: OBJECT_STORAGE_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: artifact-store
+                      key: secretKey
               volumeMounts:
                 - name: workspace
                   mountPath: /workspace/project

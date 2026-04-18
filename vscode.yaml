@@ -47,6 +47,7 @@ spec:
                 echo "[init-workspace] Workspace bootstrapped from ${STARTER}"
               else
                 echo "[init-workspace] Already initialized, skipping."
+              fi
           volumeMounts:
             - name: workspace-data
               mountPath: /home/coder/project

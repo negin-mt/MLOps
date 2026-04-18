@@ -1,0 +1,113 @@
+apiVersion: kubeflow.org/v1beta1
+kind: Experiment
+metadata:
+  name: __EXPERIMENT_NAME__
+  namespace: __NAMESPACE__
+  labels:
+    owner: __STUDENT__
+spec:
+  algorithm:
+    algorithmName: random
+  maxTrialCount: __MAX_TRIALS__
+  maxFailedTrialCount: __MAX_FAILED_TRIALS__
+  parallelTrialCount: __PARALLEL_TRIALS__
+  objective:
+    type: minimize
+    objectiveMetricName: rmse
+    goal: 25000
+  metricsCollectorSpec:
+    collector:
+      kind: StdOut
+  parameters:
+    - name: n_estimators
+      parameterType: int
+      feasibleSpace:
+        min: "__N_ESTIMATORS_MIN__"
+        max: "__N_ESTIMATORS_MAX__"
+    - name: max_depth
+      parameterType: int
+      feasibleSpace:
+        min: "__MAX_DEPTH_MIN__"
+        max: "__MAX_DEPTH_MAX__"
+    - name: min_samples_split
+      parameterType: int
+      feasibleSpace:
+        min: "__MIN_SPLIT_MIN__"
+        max: "__MIN_SPLIT_MAX__"
+    - name: min_samples_leaf
+      parameterType: int
+      feasibleSpace:
+        min: "__MIN_LEAF_MIN__"
+        max: "__MIN_LEAF_MAX__"
+  trialTemplate:
+    primaryContainerName: trainer
+    trialParameters:
+      - name: nEstimators
+        reference: n_estimators
+      - name: maxDepth
+        reference: max_depth
+      - name: minSamplesSplit
+        reference: min_samples_split
+      - name: minSamplesLeaf
+        reference: min_samples_leaf
+    trialSpec:
+      apiVersion: batch/v1
+      kind: Job
+      spec:
+        backoffLimit: 0
+        template:
+          spec:
+            restartPolicy: Never
+            serviceAccountName: __SERVICE_ACCOUNT__
+            nodeSelector:
+              __NODE_SELECTOR_KEY__: "__NODE_SELECTOR_VALUE__"
+            containers:
+              - name: trainer
+                image: __RUNTIME_IMAGE__
+                workingDir: /workspace/project
+                command:
+                  - python
+                  - -m
+                  - student_lab.katib_objective
+                  - --config
+                  - /workspace/project/project.yaml
+                  - --n-estimators=${trialParameters.nEstimators}
+                  - --max-depth=${trialParameters.maxDepth}
+                  - --min-samples-split=${trialParameters.minSamplesSplit}
+                  - --min-samples-leaf=${trialParameters.minSamplesLeaf}
+                env:
+                  - name: OBJECT_STORAGE_ENDPOINT
+                    valueFrom:
+                      secretKeyRef:
+                        name: artifact-store
+                        key: endpoint
+                  - name: OBJECT_STORAGE_SECURE
+                    valueFrom:
+                      secretKeyRef:
+                        name: artifact-store
+                        key: secure
+                  - name: OBJECT_STORAGE_ACCESS_KEY
+                    valueFrom:
+                      secretKeyRef:
+                        name: artifact-store
+                        key: accessKey
+                  - name: OBJECT_STORAGE_SECRET_KEY
+                    valueFrom:
+                      secretKeyRef:
+                        name: artifact-store
+                        key: secretKey
+                resources:
+                  requests:
+                    cpu: "__CPU_REQUEST__"
+                    memory: "__MEMORY_REQUEST__"
+                  limits:
+                    cpu: "__CPU_LIMIT__"
+                    memory: "__MEMORY_LIMIT__"
+__GPU_LIMIT_LINE__                volumeMounts:
+                  - name: workspace
+                    mountPath: /workspace
+            volumes:
+              - name: workspace
+                persistentVolumeClaim:
+                  claimName: __WORKSPACE_PVC__
+

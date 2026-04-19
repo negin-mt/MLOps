@@ -1,0 +1,76 @@
+# RBAC for Kubeflow Training Operator resources in user namespaces.
+# This file is additive — it does NOT replace or modify multi-user-namespaces.yaml.
+# The 'training-job-creator' Role grants Code-Server's service account permission
+# to create and manage training jobs in each user namespace.
+
+---
+# ── kubeflow-user-negin ──────────────────────────────────────────────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: training-job-creator
+  namespace: kubeflow-user-negin
+rules:
+  - apiGroups: ["kubeflow.org"]
+    resources:
+      - pytorchjobs
+      - pytorchjobs/status
+      - tfjobs
+      - tfjobs/status
+      - mpijobs
+      - mpijobs/status
+      - xgboostjobs
+      - xgboostjobs/status
+      - paddlejobs
+      - paddlejobs/status
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: training-job-creator-binding
+  namespace: kubeflow-user-negin
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: default
+roleRef:
+  kind: Role
+  name: training-job-creator
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# ── kubeflow-user-yousef ─────────────────────────────────────────────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: training-job-creator
+  namespace: kubeflow-user-yousef
+rules:
+  - apiGroups: ["kubeflow.org"]
+    resources:
+      - pytorchjobs
+      - pytorchjobs/status
+      - tfjobs
+      - tfjobs/status
+      - mpijobs
+      - mpijobs/status
+      - xgboostjobs
+      - xgboostjobs/status
+      - paddlejobs
+      - paddlejobs/status
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: training-job-creator-binding
+  namespace: kubeflow-user-yousef
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: default
+roleRef:
+  kind: Role
+  name: training-job-creator
+  apiGroup: rbac.authorization.k8s.io

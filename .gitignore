@@ -2,4 +2,23 @@ __pycache__/
 *.pyc
 .env
 .DS_Store
+
+# Runtime / build artefacts
 .tools/
+.state/
+
+# AI assistant config (personal, not for collaborators)
+CLAUDE.md
+.github/
+.claude/
+
+# Internal engineering process files
+.specs-for-codex/
+.codex-work-log/
+suggests-for-modification-joseph-platform.md
+
+# Personal learning notes
+learn_progress/
+
+# Throwaway / scratch files
+test.txt

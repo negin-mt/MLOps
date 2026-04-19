@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Katib Experiment - Hyperparameter tuning with Kubeflow Katib SDK
-This script creates an Experiment in Katib.
+This script creates an Experiment in Katib. this is a test
 Run from inside VS Code (code-server) with kubeflow-katib and kubernetes installed.
 """
 import os

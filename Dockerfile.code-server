@@ -1,6 +1,42 @@
-# code-server with Python 3 for Katib/Kubeflow SDK
+# Code-Server IDE image — runs in the browser workspace pod.
+# Contains the student_lab library at /opt so it is not shadowed by the PVC.
 FROM codercom/code-server:latest
 USER root
-RUN apt-get update && apt-get install -y python3 python3-pip && rm -rf /var/lib/apt/lists/* \
-    && pip3 install --no-cache-dir --break-system-packages kubeflow-katib kubernetes
+
+# ── system packages ──────────────────────────────────────────────────────────
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    python3-venv \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── MinIO mc client for dataset management from terminal ─────────────────────
+RUN arch="$(dpkg --print-architecture)" && \
+    curl -fsSL -o /usr/local/bin/mc \
+      "https://dl.min.io/client/mc/release/linux-${arch}/mc" && \
+    chmod +x /usr/local/bin/mc
+
+# ── Python packages ──────────────────────────────────────────────────────────
+# --break-system-packages is required on Debian Bookworm+ (externally managed pip)
+RUN pip3 install --no-cache-dir --break-system-packages \
+    "kubeflow-katib>=0.15.0" \
+    "kubernetes>=28.0.0" \
+    "boto3>=1.34.0" \
+    "pandas>=2.2.0" \
+    "scikit-learn>=1.5.0" \
+    "joblib>=1.4.0" \
+    "pyyaml>=6.0.0"
+
+# ── student_lab library at /opt — NOT shadowed by the /home/coder/project PVC ─
+COPY student_lab/ /opt/student_lab/
+
+# ── starter files for workspace init (copied by init container at pod start) ──
+RUN mkdir -p /opt/mlops-starter/manifests
+COPY project.yaml.template /opt/mlops-starter/project.yaml.template
+COPY manifests/ /opt/mlops-starter/manifests/
+
+# ── PYTHONPATH: 'import student_lab' resolves to /opt/student_lab/ ───────────
+ENV PYTHONPATH=/opt
+
 USER coder

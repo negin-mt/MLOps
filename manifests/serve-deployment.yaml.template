@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: __STUDENT__-model-api
+  namespace: __NAMESPACE__
+spec:
+  replicas: __SERVING_REPLICAS__
+  selector:
+    matchLabels:
+      app: __STUDENT__-model-api
+  template:
+    metadata:
+      labels:
+        app: __STUDENT__-model-api
+    spec:
+      serviceAccountName: __SERVICE_ACCOUNT__
+      nodeSelector:
+        __NODE_SELECTOR_KEY__: "__NODE_SELECTOR_VALUE__"
+      containers:
+        - name: api
+          image: __RUNTIME_IMAGE__
+          workingDir: /workspace/project
+          command:
+            - python
+            - -m
+            - uvicorn
+            - student_lab.serve_model:app
+            - --host
+            - 0.0.0.0
+            - --port
+            - "__SERVING_PORT__"
+          env:
+            - name: OBJECT_STORAGE_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: artifact-store
+                  key: endpoint
+            - name: OBJECT_STORAGE_SECURE
+              valueFrom:
+                secretKeyRef:
+                  name: artifact-store
+                  key: secure
+            - name: OBJECT_STORAGE_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: artifact-store
+                  key: accessKey
+            - name: OBJECT_STORAGE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: artifact-store
+                  key: secretKey
+          resources:
+            requests:
+              cpu: "__SERVE_CPU_REQUEST__"
+              memory: "__SERVE_MEMORY_REQUEST__"
+            limits:
+              cpu: "__SERVE_CPU_LIMIT__"
+              memory: "__SERVE_MEMORY_LIMIT__"
+__GPU_LIMIT_LINE__          ports:
+            - name: http
+              containerPort: __SERVING_PORT__
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: __SERVING_PORT__
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: __WORKSPACE_PVC__
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: __STUDENT__-model-api
+  namespace: __NAMESPACE__
+spec:
+  selector:
+    app: __STUDENT__-model-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: __SERVING_PORT__

@@ -1,0 +1,59 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: __STUDENT__-evaluate-
+  namespace: __NAMESPACE__
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: __SERVICE_ACCOUNT__
+      nodeSelector:
+        __NODE_SELECTOR_KEY__: "__NODE_SELECTOR_VALUE__"
+      containers:
+        - name: evaluate
+          image: __RUNTIME_IMAGE__
+          workingDir: /workspace/project
+          command:
+            - python
+            - -m
+            - student_lab.evaluate_model
+            - --config
+            - /workspace/project/project.yaml
+          env:
+            - name: OBJECT_STORAGE_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: artifact-store
+                  key: endpoint
+            - name: OBJECT_STORAGE_SECURE
+              valueFrom:
+                secretKeyRef:
+                  name: artifact-store
+                  key: secure
+            - name: OBJECT_STORAGE_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: artifact-store
+                  key: accessKey
+            - name: OBJECT_STORAGE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: artifact-store
+                  key: secretKey
+          resources:
+            requests:
+              cpu: "__CPU_REQUEST__"
+              memory: "__MEMORY_REQUEST__"
+            limits:
+              cpu: "__CPU_LIMIT__"
+              memory: "__MEMORY_LIMIT__"
+__GPU_LIMIT_LINE__          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: __WORKSPACE_PVC__
+

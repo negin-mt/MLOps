@@ -28,6 +28,29 @@ spec:
       annotations:
         sidecar.istio.io/inject: "false"
     spec:
+      initContainers:
+        - name: init-workspace
+          image: code-server-python:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              STARTER="/opt/mlops-starter"
+              PROJECT="/home/coder/project"
+              mkdir -p "${PROJECT}/manifests"
+              # Sentinel file: only initialize once per PVC lifetime
+              if [ ! -f "${PROJECT}/.initialized" ]; then
+                # -n: do not overwrite if target already exists
+                cp -rn "${STARTER}/." "${PROJECT}/"
+                touch "${PROJECT}/.initialized"
+                echo "[init-workspace] Workspace bootstrapped from ${STARTER}"
+              else
+                echo "[init-workspace] Already initialized, skipping."
+              fi
+          volumeMounts:
+            - name: workspace-data
+              mountPath: /home/coder/project
       containers:
       - name: code-server
         image: code-server-python:latest

@@ -1,0 +1,26 @@
+# ML runtime image — runs inside Katib trial pods and Kubernetes training jobs.
+# This is NOT the Code-Server IDE image. It is a lean execution image.
+FROM python:3.12-slim
+
+ENV PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    # Makes 'import student_lab' resolve to /opt/student_lab/
+    PYTHONPATH=/opt
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Python dependencies ──────────────────────────────────────────────────────
+COPY requirements-ml-runtime.txt /tmp/requirements-ml-runtime.txt
+RUN pip install --no-cache-dir -r /tmp/requirements-ml-runtime.txt \
+    && rm -f /tmp/requirements-ml-runtime.txt
+
+# ── student_lab library ───────────────────────────────────────────────────────
+# Must be at /opt/student_lab/ to match PYTHONPATH=/opt
+# This allows 'import student_lab' to resolve correctly.
+COPY student_lab/ /opt/student_lab/
+
+WORKDIR /workspace

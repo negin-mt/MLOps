@@ -219,6 +219,26 @@ kubectl cp katib_read_results.py default/$POD:/home/coder/project/katib_read_res
 
 The Code-Server image includes `kubeflow-katib` and `kubernetes`; no extra pip install is needed.
 
+### Validate manifest rendering before apply
+
+After editing `project.yaml`, generate the workload manifests and inspect the rendered
+output before applying anything:
+
+```bash
+python3 -m student_lab.render_manifests
+ls manifests/rendered
+```
+
+### Serving smoke check
+
+Before deploying the serving manifest, verify the serving module imports cleanly from
+the workspace image:
+
+```bash
+python3 -c "import student_lab.serve_model"
+python3 -m uvicorn student_lab.serve_model:app --help
+```
+
 ### Read results with the Python SDK (same data as kubectl / Katib UI)
 
 Katib stores results in the **Experiment** and **Trial** objects in the API. The SDK reads them with `KatibClient.get_experiment`, `get_optimal_hyperparameters`, and `list_trials`—so you can script reporting without relying only on `kubectl` or the web UI.

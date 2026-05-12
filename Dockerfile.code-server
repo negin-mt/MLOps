@@ -26,7 +26,9 @@ RUN pip3 install --no-cache-dir --break-system-packages \
     "pandas>=2.2.0" \
     "scikit-learn>=1.5.0" \
     "joblib>=1.4.0" \
-    "pyyaml>=6.0.0"
+    "pyyaml>=6.0.0" \
+    "fastapi>=0.111.0" \
+    "uvicorn[standard]>=0.30.0"
 
 # ── student_lab library at /opt — NOT shadowed by the /home/coder/project PVC ─
 COPY student_lab/ /opt/student_lab/
@@ -35,6 +37,23 @@ COPY student_lab/ /opt/student_lab/
 RUN mkdir -p /opt/mlops-starter/manifests
 COPY project.yaml.template /opt/mlops-starter/project.yaml.template
 COPY manifests/ /opt/mlops-starter/manifests/
+
+# ── manual workspace bootstrap helper for re-seeding an empty PVC if needed ────
+RUN cat >/usr/local/bin/init-workspace <<'EOF'
+#!/bin/bash
+set -euo pipefail
+STARTER="/opt/mlops-starter"
+PROJECT="${1:-/home/coder/project}"
+mkdir -p "${PROJECT}/manifests"
+if [ ! -f "${PROJECT}/.initialized" ]; then
+  cp -rn "${STARTER}/." "${PROJECT}/"
+  touch "${PROJECT}/.initialized"
+  echo "[init-workspace] Workspace bootstrapped from ${STARTER}"
+else
+  echo "[init-workspace] Already initialized, skipping."
+fi
+EOF
+RUN chmod +x /usr/local/bin/init-workspace
 
 # ── PYTHONPATH: 'import student_lab' resolves to /opt/student_lab/ ───────────
 ENV PYTHONPATH=/opt

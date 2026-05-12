@@ -49,11 +49,11 @@ spec:
             limits:
               cpu: "__CPU_LIMIT__"
               memory: "__MEMORY_LIMIT__"
-__GPU_LIMIT_LINE__          volumeMounts:
+              __GPU_LIMIT_LINE__
+          volumeMounts:
             - name: workspace
-              mountPath: /workspace
+              mountPath: /workspace/project
       volumes:
         - name: workspace
           persistentVolumeClaim:
             claimName: __WORKSPACE_PVC__
-

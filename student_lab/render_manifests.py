@@ -22,7 +22,7 @@ def manifest_context(config_data: dict) -> dict[str, str]:
     bucket = config_data["student"]["bucket"]
     gpu_limit = ""
     if profile["gpu"]:
-        gpu_limit = f"            {profile['gpu']}: \"1\"\n"
+        gpu_limit = f"{profile['gpu']}: \"1\""
 
     return {
         "__STUDENT__": student,

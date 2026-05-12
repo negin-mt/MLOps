@@ -22,10 +22,23 @@ if ! command -v helm &>/dev/null; then
   HELM="$TOOLS_DIR/helm"
   if [[ ! -x "$HELM" ]]; then
     echo "[install-monitoring] Helm not found; downloading Helm 3 to $HELM ..."
-    curl -fsSL https://get.helm.sh/helm-v3.14.4-linux-amd64.tar.gz -o /tmp/helm-linux-amd64.tar.gz
-    tar -xzf /tmp/helm-linux-amd64.tar.gz -C /tmp
-    mv /tmp/linux-amd64/helm "$HELM"
+    OS_NAME="$(uname -s | tr '[:upper:]' '[:lower:]')"
+    ARCH_NAME="$(uname -m)"
+    case "$ARCH_NAME" in
+      x86_64|amd64) ARCH_NAME="amd64" ;;
+      arm64|aarch64) ARCH_NAME="arm64" ;;
+      *)
+        echo "[install-monitoring] Unsupported architecture for Helm bootstrap: $ARCH_NAME" >&2
+        exit 1
+        ;;
+    esac
+    ARCHIVE_NAME="helm-v3.14.4-${OS_NAME}-${ARCH_NAME}.tar.gz"
+    TMP_DIR="$(mktemp -d)"
+    curl -fsSL "https://get.helm.sh/${ARCHIVE_NAME}" -o "${TMP_DIR}/helm.tgz"
+    tar -xzf "${TMP_DIR}/helm.tgz" -C "${TMP_DIR}"
+    mv "${TMP_DIR}/${OS_NAME}-${ARCH_NAME}/helm" "$HELM"
     chmod +x "$HELM"
+    rm -rf "$TMP_DIR"
   fi
 fi
 

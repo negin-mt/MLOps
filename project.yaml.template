@@ -2,9 +2,10 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # SETUP INSTRUCTIONS:
 #
-# 1. Copy this file to your Code-Server workspace:
+# 1. Open Code-Server and check /home/coder/project first.
+#    The initContainer normally bootstraps this workspace automatically on first start.
+#    If you ever need to re-seed an empty workspace manually, run:
 #      bash /usr/local/bin/init-workspace
-#    (This runs once and copies the template to /home/coder/project/project.yaml)
 #
 # 2. Edit every field marked with ← FILL IN before running any commands.
 #

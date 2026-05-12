@@ -10,9 +10,47 @@ CLUSTER_NAME="${CLUSTER_NAME:-kind}"
 METALLB_IP_START="${METALLB_IP_START:-172.20.255.200}"
 METALLB_IP_END="${METALLB_IP_END:-172.20.255.250}"
 STATE_DIR="${SCRIPT_DIR}/.state"
+HELM_BIN="${HELM:-helm}"
 
 log() { echo "[$(date +%H:%M:%S)] $*"; }
 err() { echo "[ERROR] $*" >&2; }
+
+ensure_helm() {
+  if command -v "${HELM_BIN}" &>/dev/null; then
+    HELM_BIN="$(command -v "${HELM_BIN}")"
+    export HELM="${HELM_BIN}"
+    return 0
+  fi
+
+  local tools_dir archive_name os_name arch_name tmp_dir extracted_dir
+  tools_dir="${SCRIPT_DIR}/.tools"
+  mkdir -p "${tools_dir}"
+  HELM_BIN="${tools_dir}/helm"
+  if [[ ! -x "${HELM_BIN}" ]]; then
+    os_name="$(uname -s | tr '[:upper:]' '[:lower:]')"
+    arch_name="$(uname -m)"
+    case "${arch_name}" in
+      x86_64|amd64) arch_name="amd64" ;;
+      arm64|aarch64) arch_name="arm64" ;;
+      *)
+        err "Unsupported architecture for Helm bootstrap: ${arch_name}"
+        return 1
+        ;;
+    esac
+
+    archive_name="helm-v3.14.4-${os_name}-${arch_name}.tar.gz"
+    tmp_dir="$(mktemp -d)"
+    extracted_dir="${tmp_dir}/${os_name}-${arch_name}"
+    log "Helm not found. Downloading ${archive_name} ..."
+    curl -fsSL "https://get.helm.sh/${archive_name}" -o "${tmp_dir}/helm.tgz"
+    tar -xzf "${tmp_dir}/helm.tgz" -C "${tmp_dir}"
+    mv "${extracted_dir}/helm" "${HELM_BIN}"
+    chmod +x "${HELM_BIN}"
+    rm -rf "${tmp_dir}"
+  fi
+
+  export HELM="${HELM_BIN}"
+}
 
 wait_for_pods() {
   local ns="$1" label="$2" timeout="${3:-300}"
@@ -140,6 +178,7 @@ step_training_operator() {
 
 step_minio() {
   log "=== 5b. Installing MinIO object storage ==="
+  ensure_helm || return 1
 
   # ── credentials (generated once, persisted locally) ─────────────────────────
   local minio_user_file="${STATE_DIR}/minio-root-user.txt"
@@ -165,13 +204,13 @@ step_minio() {
   kubectl create namespace platform --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
   # ── Helm install ─────────────────────────────────────────────────────────────
-  if ! helm repo list 2>/dev/null | grep -q "^minio"; then
-    helm repo add minio https://charts.min.io/ >/dev/null 2>&1 || true
+  if ! "${HELM_BIN}" repo list 2>/dev/null | grep -q "^minio"; then
+    "${HELM_BIN}" repo add minio https://charts.min.io/ >/dev/null 2>&1 || true
   fi
-  helm repo update >/dev/null
+  "${HELM_BIN}" repo update >/dev/null
 
   log "Installing MinIO (standalone, chart 5.4.0)..."
-  helm upgrade --install minio minio/minio \
+  "${HELM_BIN}" upgrade --install minio minio/minio \
     --namespace platform \
     --version 5.4.0 \
     --set mode=standalone \
@@ -266,6 +305,7 @@ step_build_images() {
 
 step_monitoring() {
   log "=== 6. Installing monitoring (Prometheus + Grafana) ==="
+  ensure_helm || return 1
   bash "$SCRIPT_DIR/monitoring/install-monitoring.sh"
 }
 

@@ -57,7 +57,8 @@ spec:
             limits:
               cpu: "__SERVE_CPU_LIMIT__"
               memory: "__SERVE_MEMORY_LIMIT__"
-__GPU_LIMIT_LINE__          ports:
+              __GPU_LIMIT_LINE__
+          ports:
             - name: http
               containerPort: __SERVING_PORT__
           readinessProbe:
@@ -68,7 +69,7 @@ __GPU_LIMIT_LINE__          ports:
             periodSeconds: 5
           volumeMounts:
             - name: workspace
-              mountPath: /workspace
+              mountPath: /workspace/project
       volumes:
         - name: workspace
           persistentVolumeClaim:
